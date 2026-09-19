@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import s from '../../../lib/chatStyles.js'
-import { MODEL_KEYS, MODEL_LABELS } from '../../../lib/chatConstants.js'
+import { MODEL_KEYS } from '../../../lib/chatConstants.js'
 import { usePanelProps } from '../PanelPropsContext.js'
 
 export default function TelemetryStrip({ lastTtft, linkFault, dockTab, setDockTab, onOpenPalette, onLogout, userRole, narrow, onToggleRail }) {
   const p = usePanelProps()
   const { usageData, loadUsage } = p.usage
-  const { settings, conv, modelParams } = p
+  const { settings, conv, modelParams, catalog } = p
   const [breakers, setBreakers] = useState(null)
 
   // refresh session spend when a reply finishes
@@ -29,11 +29,12 @@ export default function TelemetryStrip({ lastTtft, linkFault, dockTab, setDockTa
   const openModels = breakers ? Object.entries(breakers.models || {}).filter(([, o]) => o).map(([m]) => m) : []
 
   const lockedModel = conv.convLockModel
+  const roleId = MODEL_KEYS[modelParams.selectedModel]
   const busModel = lockedModel
-    ? (MODEL_LABELS[lockedModel] || lockedModel)
+    ? catalog.labelFor(lockedModel)
     : modelParams.selectedModel === 'auto'
       ? 'AUTO'
-      : (MODEL_LABELS[MODEL_KEYS[modelParams.selectedModel]] || modelParams.selectedModel)
+      : catalog.labelFor(roleId || modelParams.selectedModel)
 
   return (
     <div style={s.teleStrip}>

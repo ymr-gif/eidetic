@@ -3,6 +3,8 @@ import { useState } from 'react'
 export default function useModelParams() {
   const [selectedModel, setSelectedModel] = useState('auto')
   const [compareMode, setCompareMode] = useState(false)
+  // null = default (the 3 role models); otherwise an admin/user-picked list of up to 4 model ids.
+  const [compareModels, setCompareModels] = useState(null)
   const [paramsOpen, setParamsOpen] = useState(false)
   const [tempEnabled, setTempEnabled] = useState(false)
   const [temperature, setTemperature] = useState(0.7)
@@ -14,6 +16,7 @@ export default function useModelParams() {
   return {
     selectedModel, setSelectedModel,
     compareMode, setCompareMode,
+    compareModels, setCompareModels,
     paramsOpen, setParamsOpen,
     tempEnabled, setTempEnabled,
     temperature, setTemperature,

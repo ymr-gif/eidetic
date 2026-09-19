@@ -105,7 +105,7 @@ Last updated: 2026-07-04 (full-surface verification green 2026-07-03 — every d
 ### Dimension 3 — Reasoning Loop
 | Gap | Notes |
 |-----|-------|
-| ~~Intent classification~~ | ~~Router picks model type only; no user intent (question/task/exploration)~~ ✅ hybrid keyword + 8B fallback (`classify_intent_hybrid`); tunes retrieval breadth + tool eagerness |
+| ~~Intent classification~~ | ~~Router picks model type only; no user intent (question/task/exploration)~~ ✅ hybrid keyword + llama-role fallback (`classify_intent_hybrid`); tunes retrieval breadth + tool eagerness |
 | ~~Grounding confidence signal~~ | ~~No indication to user of retrieval confidence~~ ✅ `grounding` in `done` SSE (level + %); computed from `dense_score` (mode-independent), not skewed `final_score`. Persisted on `messages.render_meta` (migration 044) → badge survives refetch/reload/history. Themed dot, no emoji |
 | ~~Reasoning trace exposure~~ | ~~No intermediate reasoning steps in UI~~ ✅ `activity[]` pipeline trace in `done` SSE + persisted `activity_trace`, expands from grounding badge (survives reload/history). Enhanced: `stage:"tool"` / `stage:"tool_result"` events emitted per tool call; retrieval detail includes top-3 `dense_score` values. NOTE: pipeline-level trace, not model chain-of-thought (llama-3.3-70b emits no native thinking tokens) |
 

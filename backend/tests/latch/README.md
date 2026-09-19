@@ -56,7 +56,7 @@ Watch the logs for `embed_fail` creeping in — if it dominates, the embedder re
 **Long runs & token budget (important):** two separate meters.
 - *NIM tokens* (the traffic): **lean mode is ON by default** — each send caps the reply to 1 token, so
   the tool loop (the real token sink) never starts and the cache is bypassed (latch always logs). Add
-  `--lean-model meta/llama-3.1-8b-instruct` to pin the cheapest model and dodge fallback churn. A
+  `--lean-model openai/gpt-oss-20b` to pin the cheapest model and dodge fallback churn. A
   multi-hour 2-worker run is single-digit dollars. (If NIM degrades, sends just get *slow* — tokens
   stay capped, you simply collect less.)
 - *Claude tokens* (your agent tester): keep it **launch-and-poll**. Let `fleet.py`/`run_collection.py`
@@ -214,5 +214,5 @@ Everything it creates is tagged `RICHFULL-<run>`; artifacts land in `rich_full_l
 - **Cache hits skip the latch** (no line). Vary phrasing — you want the spread anyway.
 - **Rate limit**: 15 chat req/60s per user (reasoning model 5/60s). Spread score-band agents across
   users; keep flip/warm agents on the connected account and pace them.
-- **Pollution**: agent traffic primes the 70B + memory pipeline. Use a throwaway user, not real data.
+- **Pollution**: agent traffic primes the reasoning model + memory pipeline. Use a throwaway user, not real data.
 - **Volume**: aim for a few hundred rows per band across cold/warm for stable histograms, not tens.

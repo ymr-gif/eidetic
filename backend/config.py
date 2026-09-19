@@ -140,10 +140,13 @@ LLM_HEALTH_TIMEOUT   = float(os.getenv("LLM_HEALTH_TIMEOUT", 2)) # s, probe time
 LLM_PRIMARY_API_KEY  = os.getenv("LLM_PRIMARY_API_KEY", "")
 
 # ── Per-model rate limits (req / 60s) — applied only on explicit model selection
+# "catalog": shared bucket for any explicitly-picked model that is NOT one of the
+# three named roles (i.e. a live-catalog pick, Phase 3) — see rate_limiter/model_limits.py.
 MODEL_RATE_LIMITS: dict[str, tuple[int, int]] = {
     "llama":     (_int_env("RATE_LIMIT_LLAMA",     15), 60),
     "coder":     (_int_env("RATE_LIMIT_CODER",     10), 60),
     "reasoning": (_int_env("RATE_LIMIT_REASONING",  5), 60),
+    "catalog":   (_int_env("RATE_LIMIT_CATALOG",   20), 60),
 }
 
 # ── Observability / Redis Streams ─────────────────────────────────────────────
@@ -282,6 +285,19 @@ MODEL_PRICING: dict[str, dict[str, float]] = {
     "nvidia/nemotron-3-super-120b-a12b":         {"input": 0.10, "output": 0.40},
     "mistralai/mistral-nemotron":                {"input": 0.20, "output": 0.60},
 }
+
+# ── Live model catalog (HANDOFF Phase 3, 2026-09-20) ─────────────────────────
+# Admin-curated list of every model NIM's /v1/models currently serves, scanned
+# every 6h + on manual Rescan (llm/catalog/scanner.py). DEFAULT_MODEL_PRICE_*
+# bills any catalog model an admin enables but never sets a price for (user
+# decision: unpriced models are billed at a default rate, not $0 — see
+# llm/catalog/pricing.py:get_pricing). CATALOG_PROBE_* bound the scanner's raw
+# httpx probes (bypasses circuit breakers + metrics — maintenance traffic, not
+# a user turn).
+DEFAULT_MODEL_PRICE_IN    = float(os.getenv("DEFAULT_MODEL_PRICE_IN", "0.50"))
+DEFAULT_MODEL_PRICE_OUT   = float(os.getenv("DEFAULT_MODEL_PRICE_OUT", "1.50"))
+CATALOG_PROBE_CONCURRENCY = _int_env("CATALOG_PROBE_CONCURRENCY", 6)
+CATALOG_PROBE_TIMEOUT     = _int_env("CATALOG_PROBE_TIMEOUT", 20)
 
 # ── Notifications / Web Push (Phase 3c) ──────────────────────────────────────
 VAPID_PUBLIC_KEY  = os.getenv("VAPID_PUBLIC_KEY", "")

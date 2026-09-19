@@ -205,4 +205,12 @@ async def route(message: str, request_id: str) -> tuple[str, float]:
 
 
 def get_context_limit(model_name: str) -> int:
-    return config.CONTEXT_WINDOWS.get(model_name, config.DEFAULT_CONTEXT_WINDOW)
+    """Static table first (the 3 role models + any hand-pinned id), then the
+    catalog's scanned/admin-set context_window (Phase 3), then the default."""
+    if model_name in config.CONTEXT_WINDOWS:
+        return config.CONTEXT_WINDOWS[model_name]
+    from llm.catalog import cache as catalog_cache
+    entry = catalog_cache.get_entry(model_name)
+    if entry and entry.get("context_window"):
+        return entry["context_window"]
+    return config.DEFAULT_CONTEXT_WINDOW

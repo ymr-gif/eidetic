@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import llm.nim as nim
 from llm.model_extras import apply_request_extras
+from llm.catalog import cache as catalog_cache
 from api.chat.helpers import _check_cost_cap
 from api.chat.usage_ledger import record_stateless_usage
 from auth.security import get_current_user
@@ -79,6 +80,9 @@ async def chat_completions(
 ):
     # Same cost-cap pre-flight as /chat (49cb6ea) — this endpoint was uncovered (QUEUE Q4).
     await _check_cost_cap(current_user, db)
+    # Phase 3 (live model catalog): refresh the in-process snapshot before this
+    # endpoint's own _resolve_model runs (it resolves models, per HANDOFF Phase 3).
+    await catalog_cache.ensure_fresh()
     model      = _resolve_model(body.model)
     messages   = [{"role": m.role, "content": m.content} for m in body.messages]
     # OpenAI-compat is a real chat turn — same reasoning-toggle extras as /chat

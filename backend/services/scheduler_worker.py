@@ -268,6 +268,22 @@ async def run_demo_reap() -> None:
     logger.info("[scheduler] demo reap — purged %d idle account(s)", count)
 
 
+async def run_catalog_scan(trigger: str = "cron") -> None:
+    """Enqueue (or run inline if no ARQ pool) a live model catalog scan
+    (HANDOFF Phase 3). No-op in homeserver mode — checked here too so a
+    missing-scan-meta startup kick doesn't fire needlessly; run_scan() itself
+    also no-ops, this just avoids an idle enqueue."""
+    if config.LLM_BACKEND == "homeserver":
+        return
+    from core.arq_pool import get_arq_pool
+    pool = get_arq_pool()
+    if pool:
+        await pool.enqueue_job("scan_model_catalog_job", trigger=trigger)
+        return
+    from llm.catalog.scanner import run_scan
+    await run_scan(trigger=trigger)
+
+
 async def run_backup() -> None:
     """pg_dump the database directly to a gzip in the shared backups volume.
 
@@ -380,6 +396,26 @@ async def main() -> None:
         id = "__integration_sync__",
     )
     logger.info("[scheduler] integration sync scheduled every 6h")
+
+    # Live model catalog scan every 6 hours (offset :30 from integration sync
+    # above so the two don't compete for the outbound-request burst at :00).
+    scheduler.add_job(
+        run_catalog_scan,
+        CronTrigger.from_crontab("30 */6 * * *", timezone="UTC"),
+        id = "__catalog_scan__",
+    )
+    logger.info("[scheduler] catalog scan scheduled every 6h at :30")
+
+    # First deploy / fresh DB: no scan has ever run, so the catalog is empty
+    # and every model picker would show nothing but the 3 roles. Kick one scan
+    # in the background instead of waiting up to 6h for the first cron tick.
+    try:
+        from llm.catalog.scanner import get_scan_meta
+        if config.LLM_BACKEND != "homeserver" and not await get_scan_meta():
+            logger.info("[scheduler] no catalog scan meta found — running an initial scan")
+            asyncio.create_task(run_catalog_scan(trigger="startup"))
+    except Exception as e:
+        logger.warning("[scheduler] startup catalog-scan check failed: %s", e)
 
     if DIGEST_ENABLED:
         try:

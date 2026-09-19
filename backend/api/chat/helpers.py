@@ -9,7 +9,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import config
-from config import MODELS
 from llm import retriever
 from llm.closing_intent import closing_score, CLOSING_THRESHOLD, _TIER2_MIN_TOKENS, _TIER2_MAX_TOKENS
 from llm.embeddings import embed as embed_text
@@ -20,19 +19,10 @@ from llm.summarizer.salience import bump_fact_saliences, compute_salience, score
 from models import Conversation, File, MemoryConflict, Message, User, UserGoal, UserMemory, UserInsight
 from services.demo import is_ephemeral_demo, pool_spend_usd
 
+from .model_resolve import _resolve_model, resolve_model_strict  # noqa: F401 — re-export (pre-split, HANDOFF Phase 3)
 from .schemas import ChatRequest
 
 logger = logging.getLogger("chat")
-
-
-def _resolve_model(name: str | None) -> str | None:
-    if not name:
-        return None
-    if name in MODELS:
-        return MODELS[name]
-    if name in MODELS.values():
-        return name
-    return None
 
 
 def _estimate_tokens(*texts: str) -> int:

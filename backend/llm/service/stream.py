@@ -141,7 +141,7 @@ async def _resolve_connector_latches(actives: dict, latched: dict, conv_id, quer
     return out
 
 
-async def generate_response(message: str, request_id: str) -> dict:
+async def generate_response(message: str, request_id: str, model_override: str | None = None) -> dict:
     total_start = time.monotonic()
 
     try:
@@ -151,7 +151,12 @@ async def generate_response(message: str, request_id: str) -> dict:
     except Exception:
         pass
 
-    cached = await get_cached_response(message)  # non-streaming: no history context
+    # Cache key must mirror the write side below (model_override or "") — never
+    # the routed model — same invariant as the /chat/stream cache (backend/CLAUDE.md
+    # "cache" bullet): otherwise an explicit model pick could return another
+    # model's cached answer (or vice versa) and mis-attribute cost/billing.
+    cache_model = model_override or ""
+    cached = await get_cached_response(message, model=cache_model)  # non-streaming: no history context
     if cached:
         return {
             "response":      cached["response"],
@@ -161,8 +166,11 @@ async def generate_response(message: str, request_id: str) -> dict:
             "latency_ms":    0,
         }
 
-    model, _ = await route(message, request_id)
-    fallback_chain = [model] + [config.MODELS[k] for k in config.FALLBACK_ORDER if config.MODELS[k] != model]
+    if model_override:
+        fallback_chain = [model_override] + [config.MODELS[k] for k in config.FALLBACK_ORDER if config.MODELS[k] != model_override]
+    else:
+        model, _ = await route(message, request_id)
+        fallback_chain = [model] + [config.MODELS[k] for k in config.FALLBACK_ORDER if config.MODELS[k] != model]
 
     for idx, current_model in enumerate(fallback_chain):
         fallback_used = idx > 0
@@ -186,7 +194,7 @@ async def generate_response(message: str, request_id: str) -> dict:
         }
 
         try:
-            await set_cached_response(message, payload)
+            await set_cached_response(message, payload, model=cache_model)
             metrics.record_cache_write()
         except Exception as e:
             logger.warning("[cache] write_failed err=%s", e)

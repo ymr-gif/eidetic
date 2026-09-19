@@ -2,8 +2,9 @@ import asyncio
 import logging
 import uuid
 
-from config import MODEL_PRICING, MODELS
+from config import MODELS
 from llm import retriever
+from llm.catalog.pricing import get_pricing
 from llm.embeddings import embed as embed_text
 from models import Conversation
 
@@ -81,7 +82,7 @@ def _calculate_tokens_and_cost(
     full_response: str,
     model_used:    str,
 ) -> tuple[int, int, int, float]:
-    pricing = MODEL_PRICING.get(model_used, {})
+    pricing = get_pricing(model_used)
     nim_usage = event.get("usage")
     if nim_usage and isinstance(nim_usage, dict):
         prompt_tokens     = nim_usage.get("prompt_tokens", 0)

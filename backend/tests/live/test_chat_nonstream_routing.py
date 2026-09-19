@@ -8,6 +8,8 @@ import uuid
 
 import pytest
 
+import config
+
 pytestmark = pytest.mark.live_nim
 
 
@@ -33,9 +35,13 @@ def test_nonstream_basic(client, user_headers):
 
 
 def test_model_override_respected(client, user_headers):
-    # override should win over the keyword router (which otherwise picks 70B for this)
-    data = _chat_data(client, user_headers, "Say hi.", model_override="meta/llama-3.1-8b-instruct", temperature=0.6)
-    assert data["model"] == "meta/llama-3.1-8b-instruct", f"override ignored: {data['model']}"
+    # Live model ids churn under NVIDIA's catalog (HANDOFF Phase 3) — use the
+    # currently-configured coder role rather than a hardcoded id, and the
+    # keyword router's OTHER role (llama) for the prompt so this actually
+    # exercises the override instead of them coincidentally agreeing.
+    override_model = config.MODELS["coder"]
+    data = _chat_data(client, user_headers, "Say hi.", model_override=override_model, temperature=0.6)
+    assert data["model"] == override_model, f"override ignored: {data['model']}"
 
 
 def test_cache_hit_field_is_reported(sse_post, user_headers):

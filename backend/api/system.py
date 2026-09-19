@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import platform
 import socket
 import time
@@ -23,7 +24,18 @@ from observability.prom_metrics import CONTENT_TYPE_LATEST, export_metrics
 router = APIRouter(tags=["system"])
 logger = logging.getLogger("system")
 
-_PING_TIMEOUT = 5  # seconds per check
+_PING_TIMEOUT = 5  # seconds per check (the /health endpoint's own pings — unchanged)
+
+# Startup model probe — deliberately separate from _PING_TIMEOUT above (found
+# 2026-09-20, HANDOFF Phase 3: 3 deploys in a row started with 2 of 3 roles
+# failed over for 90s). A transient NVIDIA "503 overloaded" or a cold
+# time-to-first-byte past a 5s timeout used to pre-trip the breaker for a
+# model that was actually healthy. Now: a longer, env-tunable timeout, one
+# retry with a short backoff before judging the model down, and pre-trip only
+# on a DEFINITIVE result (401/404/410) or two consecutive failed attempts.
+_STARTUP_PROBE_TIMEOUT  = int(os.getenv("STARTUP_PROBE_TIMEOUT", "15"))
+_STARTUP_PROBE_RETRY_BACKOFF = 2  # seconds between the two probe attempts
+_STARTUP_PROBE_DEFINITIVE_STATUSES = {401, 404, 410}
 
 
 class ResponseMeta(BaseModel):
@@ -99,24 +111,52 @@ async def _ping_db() -> dict:
         return {"status": "error", "detail": str(e)[:120]}
 
 
+async def _startup_probe_attempt(model_id: str) -> tuple[bool, int | None, str | None]:
+    """One probe attempt. Returns (ok, http_status, error_str)."""
+    try:
+        resp = await llm_client.client.post(
+            config.NIM_URL,
+            headers={"Authorization": f"Bearer {config.NVIDIA_API_KEY}", "Content-Type": "application/json"},
+            json={"model": model_id, "messages": [{"role": "user", "content": "hi"}],
+                  **apply_request_extras(model_id, {"max_tokens": 1})},
+            timeout=_STARTUP_PROBE_TIMEOUT,
+        )
+        return resp.status_code == 200, resp.status_code, None
+    except Exception as e:
+        return False, None, str(e)[:80]
+
+
+async def _pre_trip(model_id: str) -> None:
+    for _ in range(_THRESHOLD):
+        await record_failure(model_id)
+
+
 async def probe_models_on_startup() -> None:
     async def _probe(role: str, model_id: str) -> None:
-        try:
-            resp = await llm_client.client.post(
-                config.NIM_URL,
-                headers={"Authorization": f"Bearer {config.NVIDIA_API_KEY}", "Content-Type": "application/json"},
-                json={"model": model_id, "messages": [{"role": "user", "content": "hi"}],
-                      **apply_request_extras(model_id, {"max_tokens": 1})},
-                timeout=_PING_TIMEOUT,
-            )
-            if resp.status_code == 200:
-                logger.info("[probe] model=%s ok", role)
-                return
-            logger.warning("[probe] model=%s status=%s — pre-tripping circuit", role, resp.status_code)
-        except Exception as e:
-            logger.warning("[probe] model=%s error=%s — pre-tripping circuit", role, str(e)[:80])
-        for _ in range(_THRESHOLD):
-            await record_failure(model_id)
+        ok, status_code, err = await _startup_probe_attempt(model_id)
+        if ok:
+            logger.info("[probe] model=%s ok", role)
+            return
+
+        if status_code in _STARTUP_PROBE_DEFINITIVE_STATUSES:
+            # Auth/not-found/gone — a retry a couple seconds later won't change
+            # the answer; pre-trip immediately.
+            logger.warning("[probe] model=%s status=%s (definitive) — pre-tripping circuit", role, status_code)
+            await _pre_trip(model_id)
+            return
+
+        # Transient (timeout/5xx/network error/"overloaded") — retry once
+        # before judging the model down, so one flaky response at boot doesn't
+        # fail over a healthy model for the next 90s.
+        logger.warning("[probe] model=%s first attempt failed status=%s err=%s — retrying once", role, status_code, err)
+        await asyncio.sleep(_STARTUP_PROBE_RETRY_BACKOFF)
+        ok2, status_code2, err2 = await _startup_probe_attempt(model_id)
+        if ok2:
+            logger.info("[probe] model=%s ok on retry", role)
+            return
+
+        logger.warning("[probe] model=%s failed twice (status=%s err=%s) — pre-tripping circuit", role, status_code2, err2)
+        await _pre_trip(model_id)
 
     await asyncio.gather(*(_probe(role, model_id) for role, model_id in config.MODELS.items()))
 

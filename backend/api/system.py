@@ -15,6 +15,7 @@ from sqlalchemy import text
 import llm.client as llm_client
 import config
 from llm.circuit_breaker import record_failure, _THRESHOLD
+from llm.model_extras import apply_request_extras
 from core.db import AsyncSessionLocal
 from core.redis_client import get_redis
 from observability.prom_metrics import CONTENT_TYPE_LATEST, export_metrics
@@ -47,7 +48,8 @@ async def _ping_nim() -> dict:
         resp = await llm_client.client.post(
             config.NIM_URL,
             headers={"Authorization": f"Bearer {config.NVIDIA_API_KEY}", "Content-Type": "application/json"},
-            json={"model": config.MODELS["llama"], "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1},
+            json={"model": config.MODELS["llama"], "messages": [{"role": "user", "content": "hi"}],
+                  **apply_request_extras(config.MODELS["llama"], {"max_tokens": 1})},
             timeout=_PING_TIMEOUT,
         )
         latency = int((time.monotonic() - t) * 1000)
@@ -103,7 +105,8 @@ async def probe_models_on_startup() -> None:
             resp = await llm_client.client.post(
                 config.NIM_URL,
                 headers={"Authorization": f"Bearer {config.NVIDIA_API_KEY}", "Content-Type": "application/json"},
-                json={"model": model_id, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1},
+                json={"model": model_id, "messages": [{"role": "user", "content": "hi"}],
+                      **apply_request_extras(model_id, {"max_tokens": 1})},
                 timeout=_PING_TIMEOUT,
             )
             if resp.status_code == 200:

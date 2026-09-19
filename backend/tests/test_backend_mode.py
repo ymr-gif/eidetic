@@ -42,13 +42,20 @@ def test_default_is_nim_and_inert():
     assert cfg.LLM_BACKEND == "nim"
     assert cfg.NIM_URL == "https://integrate.api.nvidia.com/v1/chat/completions"
     assert cfg.NIM_EMBEDDING_URL == "https://integrate.api.nvidia.com/v1/embeddings"
-    assert cfg.MODELS["llama"] == "meta/llama-3.1-8b-instruct"
-    # reasoning id is env-configurable (MODEL_REASONING in .env — root swaps it,
-    # e.g. openai/gpt-oss-120b); assert only that nim mode stays inert: three
-    # distinct NIM ids, NOT collapsed to the homeserver "mixtral" alias.
-    assert cfg.MODELS["reasoning"] not in ("", "mixtral")
+    # Model ids churn under NVIDIA's catalog (root swaps MODEL_LLAMA/CODER/REASONING
+    # in .env as NVIDIA EOLs them — 2026-07-06 and again 2026-09-19, see BUGS.md) —
+    # do NOT hardcode a specific live id here. Assert only that nim mode stays
+    # inert: three distinct NIM ids, none of them a known-retired id or the
+    # homeserver "mixtral" alias.
+    _DEAD_IDS = {
+        "", "mixtral",
+        "meta/llama-3.1-8b-instruct", "deepseek-ai/deepseek-v4-flash",
+        "openai/gpt-oss-120b", "nvidia/llama-3.3-nemotron-super-49b-v1",
+    }
+    assert not (set(cfg.MODELS.values()) & _DEAD_IDS)
     assert len(set(cfg.MODELS.values())) == 3
-    assert cfg.MODEL_EMBEDDING == "nvidia/nv-embedqa-e5-v5"
+    assert cfg.MODEL_EMBEDDING != "nvidia/nv-embedqa-e5-v5"  # EOL'd 08-25
+    assert cfg.EMBEDDING_DIM == 2048
     assert cfg.DEFAULT_CONTEXT_WINDOW == 131072
 
 

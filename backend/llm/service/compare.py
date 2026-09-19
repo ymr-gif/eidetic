@@ -3,6 +3,7 @@ import logging
 
 from config import MODELS
 from llm.nim import call_stream
+from llm.model_extras import apply_request_extras
 
 logger = logging.getLogger("service")
 
@@ -20,7 +21,10 @@ async def compare_streams(
     async def _run(model: str) -> None:
         try:
             msgs = common_msgs + [{"role": "user", "content": message}]
-            async for chunk in call_stream(model, msgs, request_id, model_params):
+            # Same reasoning-toggle extras as any other chat turn (Phase 2c):
+            # applied to every model in the comparison, including reasoning.
+            _params = apply_request_extras(model, model_params)
+            async for chunk in call_stream(model, msgs, request_id, _params):
                 await queue.put({"type": "token", "content": chunk, "model": model})
         except Exception as e:
             logger.warning("[compare] %s failed: %s", model, e)

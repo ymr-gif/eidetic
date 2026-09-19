@@ -1,7 +1,7 @@
 """Retrieval eval harness — tests fusion modes against fixed dataset."""
 import pytest
 from tests.retrieval.conftest import (
-    CONV_ID, QUERY_EMB_1024, FILE_ID_A, CHUNK_A_ID,
+    CONV_ID, QUERY_EMB_2048, FILE_ID_A, CHUNK_A_ID,
     TEST_CASES, FILE_TEST_CASES, _mock_db,
     _make_vector_row,
     recall_at_k, mrr, citation_coverage,
@@ -120,7 +120,7 @@ async def test_retrieve_debug_flag_off_returns_normal():
         [_make_vector_row(CHUNK_A_ID, CONV_ID, "content", 0.9)],
         [],
     )
-    result = await retrieve(db, QUERY_EMB_1024, CONV_ID, top_k=3, query_text="test")
+    result = await retrieve(db, QUERY_EMB_2048, CONV_ID, top_k=3, query_text="test")
     assert isinstance(result, list)
     assert not isinstance(result, tuple)
 
@@ -133,7 +133,7 @@ async def test_retrieve_from_files_debug_flag_off_returns_normal():
         [],
     )
     result = await retrieve_from_files(
-        db, QUERY_EMB_1024, [FILE_ID_A], top_k=3, query_text="test"
+        db, QUERY_EMB_2048, [FILE_ID_A], top_k=3, query_text="test"
     )
     assert isinstance(result, list)
     assert not isinstance(result, tuple)

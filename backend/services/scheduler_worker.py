@@ -21,6 +21,7 @@ from core.db import AsyncSessionLocal, init_db
 from core.logger import setup_logging
 from core.neo4j_client import close_neo4j, init_neo4j
 from llm.nim import call as nim_call
+from llm.model_extras import apply_request_extras
 from models import File as FileModel, ScheduledPrompt, ScheduledPromptRun, User, UserGoal, UserInsight, UserMemory, UserMemoryVersion
 from services.processor import process_file_async
 from storage.storage_manager import StorageManager
@@ -44,10 +45,14 @@ async def execute_scheduled_prompt(
 
         try:
             model = s.model_override or MODELS["llama"]
+            # Scheduled prompts are a real chat turn (saved as a File) — same
+            # reasoning-toggle extras as any other chat turn (Phase 2c): applied
+            # unconditionally, including to the reasoning role.
             result = await nim_call(
                 model    = model,
                 messages = [{"role": "user", "content": s.prompt}],
                 request_id = str(run_id),
+                model_params = apply_request_extras(model, None),
             )
 
             if not result.get("ok"):

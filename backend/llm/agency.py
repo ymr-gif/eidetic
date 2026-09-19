@@ -2,6 +2,7 @@ import logging
 
 from config import MODELS
 from llm.nim import call
+from llm.model_extras import apply_request_extras
 
 logger = logging.getLogger("agency")
 
@@ -52,7 +53,7 @@ async def generate_user_insight(user_id: int, memory: str, recent_topics: str, *
             model=MODELS["llama"],
             messages=[{"role": "user", "content": prompt}],
             request_id=f"insight-{user_id}",
-            model_params={"max_tokens": 60, "temperature": 0.4},
+            model_params=apply_request_extras(MODELS["llama"], {"max_tokens": 60, "temperature": 0.4}),
         )
         text = (result.get("content") or "").strip().strip('"')
         if text and text.upper() != "NONE" and len(text) > 10:

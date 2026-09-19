@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import llm.nim as nim
+from llm.model_extras import apply_request_extras
 from api.chat.helpers import _check_cost_cap
 from api.chat.usage_ledger import record_stateless_usage
 from auth.security import get_current_user
@@ -80,7 +81,9 @@ async def chat_completions(
     await _check_cost_cap(current_user, db)
     model      = _resolve_model(body.model)
     messages   = [{"role": m.role, "content": m.content} for m in body.messages]
-    params     = _build_params(body)
+    # OpenAI-compat is a real chat turn — same reasoning-toggle extras as /chat
+    # (Phase 2c): applied unconditionally, including to the reasoning role.
+    params     = apply_request_extras(model, _build_params(body))
     request_id = str(uuid.uuid4())
     cid        = _completion_id()
     created    = int(time.time())

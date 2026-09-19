@@ -46,6 +46,7 @@ async def _auto_title(conv_id: uuid.UUID, user_msg: str, ai_msg: str) -> None:
     from sqlalchemy import update
     from core.db import AsyncSessionLocal
     from llm.nim import call
+    from llm.model_extras import apply_request_extras
     prompt = (
         f"Summarize this exchange in 6 words or fewer:\n"
         f"User: {user_msg[:200]}\nAI: {ai_msg[:200]}"
@@ -55,6 +56,7 @@ async def _auto_title(conv_id: uuid.UUID, user_msg: str, ai_msg: str) -> None:
             model      = MODELS["llama"],
             messages   = [{"role": "user", "content": prompt}],
             request_id = f"title-{conv_id}",
+            model_params = apply_request_extras(MODELS["llama"], None),
         )
         title = (result.get("content") or "").strip().strip('"').strip("'")
         if title and len(title) <= 80:

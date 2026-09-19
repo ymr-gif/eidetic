@@ -9,6 +9,7 @@ from config import MODELS
 from core.db import AsyncSessionLocal
 from models import Message, UserMemory, UserMemoryVersion
 from llm.nim import call
+from llm.model_extras import apply_request_extras
 from core.locks import user_write_lock
 from .prompts import _MEMORY_SYSTEM, _NO_UPDATE
 
@@ -72,6 +73,7 @@ Update the memory sheet. Reply with the full updated sheet or {_NO_UPDATE}.\
             {"role": "user",   "content": prompt},
         ],
         request_id = f"mem-{user_id}",
+        model_params = apply_request_extras(_MODEL, None),
     )
 
     if not result.get("ok"):
@@ -141,6 +143,7 @@ async def _restructure_memory(db: AsyncSession, user_id: int) -> None:
             {"role": "user",   "content": prompt},
         ],
         request_id = f"restructure-{user_id}",
+        model_params = apply_request_extras(_MODEL, None),
     )
 
     if not result.get("ok"):

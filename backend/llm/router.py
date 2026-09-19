@@ -163,6 +163,7 @@ async def classify_intent_hybrid(message: str, request_id: str = "") -> str:
     # Ambiguous or no keyword signal → single constrained 8B classification.
     try:
         from llm import nim
+        from llm.model_extras import apply_request_extras
         prompt = (
             "Classify the user's intent as exactly one word: task, exploration, "
             "question, or closing.\n"
@@ -182,7 +183,7 @@ async def classify_intent_hybrid(message: str, request_id: str = "") -> str:
             config.MODELS["llama"],
             [{"role": "user", "content": prompt}],
             request_id or "intent",
-            model_params={"max_tokens": 4, "temperature": 0.0},
+            model_params=apply_request_extras(config.MODELS["llama"], {"max_tokens": 4, "temperature": 0.0}),
         )
         if result.get("ok") and result.get("content"):
             word = result["content"].strip().lower()

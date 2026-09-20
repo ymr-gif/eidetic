@@ -27,10 +27,12 @@ shared `_looks_like_request` veto (in `router.py`) gates this tier before the co
 "thanks, but the formula is wrong" (scores high, starts with "thanks") can never latch closing.
 
 **Embedder-specific:** the anchor set auto-regenerates at boot under any embedder, but
-`CLOSING_THRESHOLD` + the token band are tuned to nv-embedqa-e5-v5's nearest-example score geometry
-(which runs HOT) against `tests/closing_intent_eval.jsonl`. Re-run the eval + re-tune on the
-bge-large-en-v1.5 swap — same obligation as the connector `INTENT_THRESHOLDS`. See
-backend/CLAUDE.md → LLM_BACKEND invariant.
+`CLOSING_THRESHOLD` + the token band are tuned to the LIVE embedder's nearest-example score geometry
+against `tests/closing_intent_eval.jsonl`. **Re-tuned 2026-09-20 for `nvidia/nemotron-3-embed-1b`**
+(2048-d) — see `CLOSING_THRESHOLD` comment for the measured numbers; nemotron runs noticeably
+cooler/tighter than e5 did, so the old 0.83 does not port (see `tests/latch/retune_thresholds.py`).
+Re-run the eval + re-tune again on the eventual bge-large-en-v1.5 (homeserver) swap — same
+obligation as the connector `INTENT_THRESHOLDS`. See backend/CLAUDE.md → LLM_BACKEND invariant.
 """
 
 from __future__ import annotations
@@ -73,16 +75,23 @@ _CLOSING_PHRASES: list[str] = [
     "that's it, thank you for everything",
 ]
 
-# Nearest-example cosine threshold separating closing from non-closing turns. TUNED 2026-07-08
-# against tests/closing_intent_eval.jsonl (40 turns) under the live embedder (nv-embedqa-e5-v5),
-# at the tier-2 operating point (shared `_looks_like_request` veto + token band applied):
-# thr=0.83 → recall 17/20 (0.85), specificity 20/20 (1.00, ZERO false positives). Precision-biased:
-# a false positive drops tools + skips RAG on real work = the original misfire in reverse, so
-# zero-FP wins over recall. The 3 missed acks fall through to the tier-3 8B classifier (which has
-# a `closing` label). Two non-vetoed question-FPs ("can you explain that part again" 0.82,
-# "thanks, and how do i format the cells" 0.80) sit just under 0.83 — that residual sets the floor.
-# Nearest-example runs HOT; re-tune for bge — see module docstring + backend/CLAUDE.md.
-CLOSING_THRESHOLD = 0.83
+# Nearest-example cosine threshold separating closing from non-closing turns. RE-TUNED 2026-09-20
+# for `nvidia/nemotron-3-embed-1b` (2048-d) against tests/closing_intent_eval.jsonl (40 turns), via
+# `tests/latch/retune_thresholds.py`, at the tier-2 operating point (real `_looks_like_request` veto
+# + real token band applied — vetoed/out-of-band rows are excluded from precision/recall since tier 2
+# never gets to score them in production either way). Selection rule: lowest threshold (0.01 steps)
+# with ZERO false positives among eligible negatives — same precision-biased philosophy as the
+# original e5 tuning: thr=0.60 → precision 1.00, recall 14/20 (0.70), 0 FP. nemotron's nearest-example
+# scores run noticeably COOLER than e5's did (eligible closing positives span ~0.40–0.98 here vs.
+# e5's ~0.80–1.0 band), so the old 0.83 does not port — applying 0.83 to nemotron would leave almost
+# nothing above threshold. Recall dropped from the old tuning's 17/20 (0.85) to 14/20 (0.70) at the
+# new zero-FP point — a real, measured regression versus e5, not a tuning artifact; the 6 missed acks
+# fall through to the tier-3 8B classifier (which has a `closing` label), same fallback as before.
+# The tightest eligible negative was "got it, so what is the difference between them" at 0.598, one
+# hundredth below the chosen threshold. Token band (_TIER2_MIN_TOKENS/_TIER2_MAX_TOKENS) re-checked
+# against this sweep: every eval line landed inside [3, 18] tokens, so there is no sweep evidence to
+# move it — left unchanged. Re-tune again on the eventual bge-large-en-v1.5 (homeserver) swap.
+CLOSING_THRESHOLD = 0.60
 
 # Token band tier-2 is trusted in. Below _MIN the cosine is noisy (short utterances) → leave those
 # to the lexicon / 8B; ≤2-word turns skip the embed anyway so they never reach here. Above _MAX a

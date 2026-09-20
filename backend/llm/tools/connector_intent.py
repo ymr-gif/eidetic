@@ -18,16 +18,18 @@ single mean); `>= max(INTENT_THRESHOLDS[connector], FLOOR_THRESHOLD)` → latch 
 connector is `ctx.{connector}_active AND ctx.{connector}_latched`.
 
 NOTE (2026-07-01): scoring changed from mean-centroid cosine to nearest-example MAX. Max runs
-HIGHER than mean, so `INTENT_THRESHOLDS`/`FLOOR_THRESHOLD` below are the OLD mean-tuned values and
-are now MISCALIBRATED — re-measure the weak_real/none_intent distributions and re-set them before
-trusting live flips. (Motivation: terse genuine requests scored ~0.61 under the mean, overlapping
-vague turns; nearest-example lets them match a terse anchor. See BUGS.md / RUNLOG.)
+HIGHER than mean, so a mean-tuned threshold under-fires — nearest-example needs its own tuning.
 
-Embedder-specific: centroids auto-regenerate at boot under any embedder, but the
-THRESHOLDS are tuned to nv-embedqa-e5-v5's score geometry and will be WRONG for
-bge-large-en-v1.5 (same 1024-d, different geometry). On the homeserver swap,
-re-run the `tests/{connector}_intent_eval.jsonl` sets and re-tune. See
-backend/CLAUDE.md → LLM_BACKEND invariant.
+Embedder-specific: centroids auto-regenerate at boot under any embedder, but the THRESHOLDS below
+are tuned to the LIVE embedder's score geometry and will be WRONG after any embedder swap.
+**Re-tuned 2026-09-20 for `nvidia/nemotron-3-embed-1b` (2048-d)** — see `INTENT_THRESHOLDS`/
+`FLOOR_THRESHOLD` comments below for the measured numbers. nemotron-3-embed-1b's cosine range runs
+noticeably LOWER/TIGHTER than the retired `nv-embedqa-e5-v5` (1024-d) — genuine positives cluster
+~0.2–0.9 vs. e5's ~0.6–1.0 — so the old 0.60/0.60/0.65 + 0.70 floor do NOT port; a straight
+"recalibrate the old numbers" pass would have left every connector permanently unreachable (e5's
+floor alone exceeds nemotron's strongest drive positive). On the eventual bge-large-en-v1.5
+(homeserver) swap, re-run `tests/{connector}_intent_eval.jsonl` and re-tune again — do not port
+these nemotron numbers either. See backend/CLAUDE.md → LLM_BACKEND invariant.
 
 Cross-connector talk: connector requests share a "check my X / find my Y" possessive
 structure, so e.g. a gmail request scores high on the drive & calendar centroids too
@@ -40,10 +42,10 @@ cross-talk/task-imperative false latch from all connectors to one.
 Known ceiling (per connector): a single-centroid cosine separates greetings/chit-chat
 cleanly from connector requests, but connector-vs-connector-vs-task-imperative bands
 overlap — thresholds are precision-biased ("fail toward fewer tools"). The global
-`FLOOR_THRESHOLD` (0.65) rejects weak winners that only "won" because every connector
-scored low — a confident wrong latch is worse than a humble abstention. The latch is
-sticky 1h, so a false latch poisons that one connector for the session until TTL. See
-BUGS.md residual.
+`FLOOR_THRESHOLD` (see its own comment for the current value) rejects weak winners that
+only "won" because every connector scored low — a confident wrong latch is worse than
+a humble abstention. The latch is sticky 1h, so a false latch poisons that one connector
+for the session until TTL. See BUGS.md residual.
 """
 
 from __future__ import annotations
@@ -141,27 +143,43 @@ INTENT_PHRASES: dict[str, list[str]] = {
     ],
 }
 
-# Cosine thresholds separating connector-intent from non-intent turns. TUNED against
-# tests/{connector}_intent_eval.jsonl under the live embedder (nv-embedqa-e5-v5),
-# 2026-06-28, precision-biased. Re-tune for bge — see module docstring + backend/CLAUDE.md.
+# Cosine thresholds separating connector-intent from non-intent turns. RE-TUNED 2026-09-20 for
+# `nvidia/nemotron-3-embed-1b` (2048-d) against `tests/{connector}_intent_eval.jsonl` (20 positives
+# + 20 easy negatives each), via `tests/latch/retune_thresholds.py`. Selection rule: the LOWEST
+# threshold (0.01 steps) that yields ZERO false positives on that connector's 20 negatives —
+# precision-biased, same philosophy as the original e5 tuning. Measured (embed each eval line once
+# with `llm/embeddings.embed(text, input_type="query")`, score with the real `intent_score`):
 INTENT_THRESHOLDS: dict[str, float] = {
-    "drive": 0.60,     # recall 14/20, spec 18/20 (precision-biased)
-    "calendar": 0.60,  # recall 18/20, spec 16/20
-    "gmail": 0.65,     # recall 20/20, spec 19/20 (gmail separates cleanly)
+    "drive": 0.21,     # precision 1.00, recall 20/20 (1.00), 0 FP — clean separation
+    "calendar": 0.29,  # precision 1.00, recall 20/20 (1.00), 0 FP — clean separation
+    "gmail": 0.44,     # precision 1.00, recall 19/20 (0.95), 0 FP — misses one weak positive
+                       # ("find that message about the refund", scores 0.316)
 }
 
-# Global floor: a connector must clear BOTH its per-connector threshold AND
-# this floor to latch. Prevents latching on a weak winner that only "won"
-# because every connector scored low — a confident wrong latch is worse than
-# a humble abstention. Already-latched connectors (sticky TTL) unaffected.
+# Global floor: a connector must clear BOTH its per-connector threshold AND this floor to latch.
+# Prevents latching on a weak winner that only "won" because every connector scored low — a
+# confident wrong latch is worse than a humble abstention. Already-latched connectors (sticky TTL)
+# unaffected.
 #
-# Recalibrated 0.65→0.70 on 2026-07-01 for the nearest-example (max) scoring, which runs hotter
-# than the old mean cosine. A/B on 150 weak_real + 150 none_intent: at 0.65 the new scoring
-# over-fires 61% of vague turns; at 0.70 over-fire drops to ~15% (vs 37% for old@0.65) while genuine
-# recall is ~28% — the rest is meant to be recovered by the clarify fallback (the bands overlap;
-# no floor separates them). Provisional/precision-biased; the per-connector INTENT_THRESHOLDS above
-# (0.60/0.60/0.65) are mean-tuned and now DOMINATED by this floor. Re-measure with more data.
-FLOOR_THRESHOLD = 0.70
+# RE-TUNED 2026-09-20 for nemotron-3-embed-1b. Cross-talk was measured (each connector's 20
+# positives scored against the OTHER TWO connectors' anchors, via `tests/latch/retune_thresholds.py`)
+# to inform this floor per the standard methodology: MAX off-target score = 0.695 (a "look in my
+# drive for the invoice" drive-positive scores 0.695 against the GMAIL anchors — "invoice" is an
+# explicit gmail anchor noun — higher than its OWN drive score of 0.545). Setting FLOOR at/above that
+# literal max (~0.70, mirroring the old floor's numeric style) was REJECTED: nemotron's cosine range
+# runs far tighter than e5's did, and drive's single strongest positive in the eval set only scores
+# 0.643 — a 0.70 floor would make the drive connector's latch STRUCTURALLY UNREACHABLE (0/20 recall),
+# and would cut calendar to 4/20 (0.20) and gmail to 10/20 (0.50). That is not "precision-biased," it
+# is "disabled," so it was not shipped. Chosen instead: 0.30, set from the negative/noise ceiling
+# measured across all three connectors' own eval sets (generic non-connector chit-chat tops out at
+# 0.206 drive / 0.288 calendar / 0.262 gmail-excluding-cross-connector-items) — high enough to reject
+# near-zero-signal winners, low enough to only mildly cost recall: drive 20/20→18/20 (loses its two
+# weakest positives, ~0.22/0.30), calendar unaffected (still 20/20, its own threshold already clears
+# 0.30), gmail unaffected (own threshold 0.44 > floor). The 0.695 cross-talk case above is a genuine
+# anchor-vocabulary-overlap problem (shared nouns like "invoice") that NO floor value can fix without
+# gutting recall — it needs a margin-based single-winner rule or disjoint anchor vocabulary, both out
+# of scope for a threshold-only re-tune; flagged in BUGS.md as a residual.
+FLOOR_THRESHOLD = 0.30
 
 _anchors: dict[str, list[list[float]] | None] = {}
 _locks: dict[str, asyncio.Lock] = {c: asyncio.Lock() for c in INTENT_PHRASES}

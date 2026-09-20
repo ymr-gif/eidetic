@@ -10,6 +10,10 @@ const STATUS_COLOR = {
   error: AMBER,
 }
 
+// definitive-down: the model has no path back without a rescan proving it live
+// again — de-emphasise the enable toggle so it doesn't read as an inviting action.
+const DOWN_STATUSES = new Set(['not_found', 'gone', 'delisted'])
+
 export default function CatalogRow({ row, onSave, saving }) {
   const [priceIn, setPriceIn] = useState(row.price_in ?? '')
   const [priceOut, setPriceOut] = useState(row.price_out ?? '')
@@ -43,6 +47,7 @@ export default function CatalogRow({ row, onSave, saving }) {
   }
 
   const statusColor = STATUS_COLOR[row.status] || FG4
+  const isDown = DOWN_STATUSES.has(row.status)
 
   return (
     <div style={s.modelRow}>
@@ -57,8 +62,11 @@ export default function CatalogRow({ row, onSave, saving }) {
           <button
             onClick={toggleEnabled}
             disabled={saving || row.is_role_model}
-            title={row.is_role_model ? 'Role models stay enabled — swap the role in .env first' : (row.enabled ? 'Disable' : 'Enable')}
-            style={row.enabled ? s.toggleOn : s.toggleOff}>
+            title={row.is_role_model ? 'Role models stay enabled — swap the role in .env first'
+              : row.enabled ? 'Disable'
+              : isDown ? 'Currently down — enabling is rejected if this model has never been live'
+              : 'Enable'}
+            style={row.enabled ? s.toggleOn : isDown ? s.toggleOffMuted : s.toggleOff}>
             {row.enabled ? 'ENABLED' : 'DISABLED'}
           </button>
         </div>

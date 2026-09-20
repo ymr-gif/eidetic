@@ -16,6 +16,14 @@ class ModelCatalog(Base):
     MODEL_MIN_MAX_TOKENS tables (see llm/catalog/cache.py). `reasoning` is set
     by the scanner's probe (empty `content` + non-empty `reasoning_content`) so
     the admin UI can warn "reasoning model — set extras" on a newly-live id.
+
+    `last_live_at` (migration 051, HANDOFF Phase 7): the last time a probe
+    actually returned status="live" for this id. Set by
+    llm/catalog/store.py:upsert_scan_result whenever a scan probe is live;
+    left untouched on every other outcome. Closes the "never offer a model
+    that was never live" gap — a model that has only ever timed out/errored
+    (fail_count<=1, "tolerate 1 failed probe") must not be treated as
+    available just because it hasn't failed twice yet.
     """
     __tablename__ = "model_catalog"
 
@@ -33,6 +41,7 @@ class ModelCatalog(Base):
     reasoning:       Mapped[bool | None]     = mapped_column(Boolean, nullable=True)
     request_extras:  Mapped[dict | None]     = mapped_column(JSONB, nullable=True)
     min_max_tokens:  Mapped[int | None]      = mapped_column(Integer, nullable=True)
+    last_live_at:    Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_checked:    Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     first_seen:      Mapped[datetime]        = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at:      Mapped[datetime]        = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

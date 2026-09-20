@@ -1,13 +1,16 @@
 import s, { ALERT } from '../../../lib/chatStyles.js'
-import { fmtDate } from '../../../lib/chatUtils.js'
 import { usePanelProps } from '../PanelPropsContext.js'
 import CatalogRow from './CatalogRow.jsx'
+import { sortCatalogRows, describeScan } from './catalogSort.js'
 
 const STATUS_OPTIONS = ['', 'live', 'timeout', 'error', 'not_found', 'gone', 'delisted']
 
 export default function ModelCatalogPanel() {
   const p = usePanelProps()
   const { rows, scanMeta, loading, error, query, setQuery, statusFilter, setStatusFilter, rescanning, rescanMsg, rescan, patchModel, savingId, reload } = p.adminModels
+
+  const sortedRows = sortCatalogRows(rows)
+  const scan = describeScan(scanMeta)
 
   return (
     <div style={s.dockPane}>
@@ -27,18 +30,14 @@ export default function ModelCatalogPanel() {
           <button onClick={rescan} disabled={rescanning} style={s.actionBtn}>
             {rescanning ? 'Queuing…' : '↺ Rescan'}
           </button>
-          <span style={s.modelsScanMeta}>
-            {rescanMsg || (scanMeta
-              ? `last scan ${fmtDate(scanMeta.timestamp)} · ${scanMeta.trigger || ''}`
-              : 'no scan recorded yet')}
-          </span>
+          <span style={s.modelsScanMeta} title={scan.title}>{rescanMsg || scan.text}</span>
         </div>
       </div>
       <div style={s.modelsBody}>
         {error && <div style={{ fontSize:'13px', color:ALERT, marginBottom:'0.5rem' }}>{error}</div>}
         {loading && rows.length === 0 && <p style={s.emptyMem}>Loading…</p>}
         {!loading && rows.length === 0 && <p style={s.emptyMem}>No models match.</p>}
-        {rows.map(row => (
+        {sortedRows.map(row => (
           <CatalogRow key={row.id} row={row} onSave={patchModel} saving={savingId === row.id} />
         ))}
       </div>

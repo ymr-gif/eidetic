@@ -41,6 +41,10 @@ _REFRESH_GUARD_SECONDS = 15
 _DEFINITIVE_DOWN = {"not_found", "gone", "delisted"}
 # Transient-failure statuses still count as available for ONE probe cycle
 # (fail_count<=1) — "tolerate 1 failed probe" (spec). Two in a row flips it.
+# HANDOFF Phase 7: tolerance ALSO requires last_live_at to be set — a model
+# that has never once answered a probe must never be "available" just
+# because it hasn't failed twice yet. "Tolerate 1 failed probe" means a
+# model that WAS live and blipped, not one that never worked.
 _TRANSIENT = {"timeout", "error"}
 
 _snapshot: dict[str, dict] = {}
@@ -54,7 +58,11 @@ def _entry_available(entry: dict) -> bool:
     status = entry.get("status")
     if status == "live":
         return True
-    if status in _TRANSIENT and (entry.get("fail_count") or 0) <= 1:
+    if (
+        status in _TRANSIENT
+        and (entry.get("fail_count") or 0) <= 1
+        and entry.get("last_live_at")
+    ):
         return True
     return False
 
@@ -76,6 +84,7 @@ def row_to_entry(row) -> dict:
         "reasoning":      row.reasoning,
         "request_extras": row.request_extras,
         "min_max_tokens": row.min_max_tokens,
+        "last_live_at":   row.last_live_at.isoformat() if row.last_live_at else None,
     }
 
 

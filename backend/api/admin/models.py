@@ -2,6 +2,12 @@
 disable + price/context-window override individual models, trigger a manual
 Rescan. Same require_role("admin") + _audit() pattern as the rest of
 api/admin/*.py.
+
+HANDOFF Phase 7: enabling a model that has never once answered a live probe
+(`last_live_at IS NULL` — migration 051) is refused with 409, `detail="never_live"`
+(bare string — frontend does an exact match). Disabling is always allowed
+regardless. The row is still returned by GET either way — this only guards
+the enable action, never visibility.
 """
 import json
 import logging
@@ -49,6 +55,7 @@ def _row_out(row: ModelCatalog) -> dict:
         "reasoning":       row.reasoning,
         "request_extras":  row.request_extras,
         "min_max_tokens":  row.min_max_tokens,
+        "last_live_at":    row.last_live_at.isoformat() if row.last_live_at else None,
         "last_checked":    row.last_checked.isoformat() if row.last_checked else None,
         "first_seen":      row.first_seen.isoformat()   if row.first_seen   else None,
         "updated_at":      row.updated_at.isoformat()   if row.updated_at   else None,
@@ -95,6 +102,21 @@ async def patch_catalog_model(
 
     if updated.get("enabled") is False and model_id in set(config.MODELS.values()):
         raise HTTPException(status_code=409, detail="Cannot disable a role model (llama/coder/reasoning)")
+
+    # HANDOFF Phase 7: never offer a model that was never live. Enabling is
+    # blocked (disabling never is — that's always safe) when the row has
+    # never once answered a probe with status="live". A row currently
+    # status="live" always has last_live_at set (store.py sets it on every
+    # live probe; migration 051 backfilled pre-existing live rows), so this
+    # only fires for not_found/gone/delisted/timeout/error ids that have
+    # NEVER been live — exactly the repro (timeout, fail_count=1, enabled).
+    # `detail` is a bare string ("never_live"), matching this endpoint's own
+    # existing 409 precedent (the role-model-disable check two lines up) —
+    # the frontend does an exact `data.detail === 'never_live'` match and
+    # supplies its own user-facing copy, same as it already does for the
+    # role-model-disable 409.
+    if updated.get("enabled") is True and row.last_live_at is None:
+        raise HTTPException(status_code=409, detail="never_live")
 
     if ("price_in" in updated) != ("price_out" in updated):
         raise HTTPException(status_code=400, detail="price_in and price_out must be set together")

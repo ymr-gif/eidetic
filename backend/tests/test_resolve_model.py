@@ -36,7 +36,7 @@ def _reset_catalog():
     catalog_cache._reset_for_tests()
 
 
-def _seed(model_id: str, *, enabled=True, status="live", fail_count=0):
+def _seed(model_id: str, *, enabled=True, status="live", fail_count=0, last_live_at="2026-09-19T00:00:00+00:00"):
     catalog_cache._replace_snapshot({
         **catalog_cache._snapshot,
         model_id: {
@@ -44,6 +44,7 @@ def _seed(model_id: str, *, enabled=True, status="live", fail_count=0):
             "fail_count": fail_count, "price_in": None, "price_out": None,
             "context_window": None, "latency_ms": None, "supports_tools": None,
             "reasoning": None, "request_extras": None, "min_max_tokens": None,
+            "last_live_at": last_live_at,
         },
     })
 
@@ -85,6 +86,13 @@ class TestResolveModel:
 
     def test_two_failed_probes_no_longer_available(self):
         _seed(CATALOG_ID, enabled=True, status="timeout", fail_count=2)
+        assert _resolve_model(CATALOG_ID) is None
+
+    def test_never_live_model_never_resolves_even_with_one_failed_probe(self):
+        """HANDOFF Phase 7: a model that has NEVER answered a probe live must
+        not resolve just because fail_count hasn't hit 2 yet — repro was
+        nvidia/nemotron-3-ultra-550b-a55b, status=timeout, fail_count=1."""
+        _seed(CATALOG_ID, enabled=True, status="timeout", fail_count=1, last_live_at=None)
         assert _resolve_model(CATALOG_ID) is None
 
 

@@ -44,7 +44,14 @@ async def upsert_scan_result(
     this is the first time the scanner has ever seen this id. `seed_enabled`
     only applies on first sight (role models start enabled, everything else
     starts disabled — admin must opt in); it is never re-applied to an
-    existing row, so an admin's explicit enable/disable choice always wins."""
+    existing row, so an admin's explicit enable/disable choice always wins.
+
+    `last_live_at` (migration 051, HANDOFF Phase 7) is set to `now` whenever
+    `status == "live"` and left untouched on every other outcome — it never
+    goes backward to null once a model has genuinely been live at least
+    once. Consulted by llm/catalog/cache.py:_entry_available so a model that
+    has only ever timed out/errored (never live) isn't tolerated as
+    "available" just because fail_count hasn't reached 2 yet."""
     now = datetime.now(timezone.utc)
     row = await db.get(ModelCatalog, model_id)
 
@@ -58,6 +65,7 @@ async def upsert_scan_result(
             fail_count=0 if status == "live" else 1,
             enabled=seed_enabled,
             reasoning=reasoning,
+            last_live_at=now if status == "live" else None,
             first_seen=now,
             last_checked=now,
             updated_at=now,
@@ -69,6 +77,8 @@ async def upsert_scan_result(
     row.status = status
     row.http_status = http_status
     row.latency_ms = latency_ms
+    if status == "live":
+        row.last_live_at = now
     if reasoning is not None:
         row.reasoning = reasoning
     if not row.label and label:

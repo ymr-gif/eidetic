@@ -60,9 +60,14 @@ export default function useAdminModels(token) {
         return { ok: true }
       }
       const data = await r.json().catch(() => ({}))
-      const msg = r.status === 409
-        ? 'Cannot disable a role model — swap it in .env first'
-        : (data.detail || `Update failed (${r.status})`)
+      let msg
+      if (r.status === 409 && data.detail === 'never_live') {
+        msg = 'Cannot enable — this model has never been live'
+      } else if (r.status === 409) {
+        msg = 'Cannot disable a role model — swap it in .env first'
+      } else {
+        msg = data.detail || `Update failed (${r.status})`
+      }
       return { ok: false, error: msg }
     } catch {
       return { ok: false, error: 'Request failed' }

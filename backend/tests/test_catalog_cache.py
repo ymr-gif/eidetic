@@ -1,10 +1,12 @@
-"""llm/catalog/cache.py — in-process snapshot refresh (HANDOFF Phase 3).
+"""llm/catalog/cache.py — in-process snapshot refresh (HANDOFF Phase 3 + 7).
 
 Unit tier — Redis and the DB are both faked (AsyncMock-style stand-ins), no
 real network/DB I/O. Covers: the 15s guard, version-unchanged short-circuit,
 version-changed Redis-hash reload, Redis-down DB fallback, USE_REDIS=false
 straight-to-DB path, and the availability predicate (enabled AND live, or
-enabled with <=1 recent failed probe).
+enabled with <=1 recent failed probe AND last_live_at set — HANDOFF Phase 7:
+a model that has never once answered a probe is never "available" just
+because it hasn't failed twice yet).
 """
 import json
 import os
@@ -27,6 +29,7 @@ ENTRY = {
     "enabled": True, "fail_count": 0, "price_in": None, "price_out": None,
     "context_window": None, "latency_ms": 100, "supports_tools": None,
     "reasoning": None, "request_extras": None, "min_max_tokens": None,
+    "last_live_at": None,
 }
 
 
@@ -177,12 +180,36 @@ class TestAvailability:
         self._seed({**ENTRY, "enabled": True, "status": "not_found"})
         assert catalog_cache.is_available(ENTRY["id"]) is False
 
-    def test_one_failed_probe_tolerated(self):
-        self._seed({**ENTRY, "enabled": True, "status": "error", "fail_count": 1})
+    def test_one_failed_probe_tolerated_when_previously_live(self):
+        self._seed({
+            **ENTRY, "enabled": True, "status": "error", "fail_count": 1,
+            "last_live_at": "2026-09-19T00:00:00+00:00",
+        })
         assert catalog_cache.is_available(ENTRY["id"]) is True
 
-    def test_two_failed_probes_not_available(self):
-        self._seed({**ENTRY, "enabled": True, "status": "error", "fail_count": 2})
+    def test_two_failed_probes_not_available_even_if_previously_live(self):
+        self._seed({
+            **ENTRY, "enabled": True, "status": "error", "fail_count": 2,
+            "last_live_at": "2026-09-19T00:00:00+00:00",
+        })
+        assert catalog_cache.is_available(ENTRY["id"]) is False
+
+    def test_transient_status_never_live_is_not_available(self):
+        """HANDOFF Phase 7 repro: enabled, status=timeout, fail_count=1, but
+        last_live_at is null — this model has NEVER answered a probe. Must
+        not be tolerated as available just because it hasn't failed twice."""
+        self._seed({
+            **ENTRY, "enabled": True, "status": "timeout", "fail_count": 1,
+            "last_live_at": None,
+        })
+        assert catalog_cache.is_available(ENTRY["id"]) is False
+
+    def test_transient_status_missing_last_live_at_key_is_not_available(self):
+        """A pre-051 snapshot entry with no last_live_at key at all (not just
+        None) must fail the same way — entry.get() default, not a KeyError."""
+        entry = {**ENTRY, "enabled": True, "status": "error", "fail_count": 1}
+        entry.pop("last_live_at", None)
+        self._seed(entry)
         assert catalog_cache.is_available(ENTRY["id"]) is False
 
     def test_missing_entry_is_not_available(self):

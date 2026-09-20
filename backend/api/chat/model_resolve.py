@@ -15,8 +15,10 @@ def _resolve_model(name: str | None) -> str | None:
     """Role name ('llama'/'coder'/'reasoning') -> its current model id. A
     literal role id passes through unchanged. Otherwise (Phase 3): an id the
     live catalog currently considers AVAILABLE (enabled + live, or enabled
-    with at most one recent failed probe) passes through too. Anything else
-    (unknown id, disabled catalog model, a catalog id that has gone
+    with at most one recent failed probe AND at least one confirmed-live
+    probe in its history — Phase 7: a model that has never once answered
+    never counts as available) passes through too. Anything else (unknown
+    id, disabled catalog model, a catalog id that has gone
     not_found/gone/delisted) returns None so the caller falls back to Auto
     routing rather than sending a request that will just fail."""
     if not name:

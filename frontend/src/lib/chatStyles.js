@@ -284,6 +284,7 @@ const s = {
   numInput:       { width:'56px', padding:'0.15rem 0.35rem', borderRadius:'3px', border:`1px solid ${LINE2}`, background:VOID, color:FG1, fontFamily:MONO, fontSize:'11px', outline:'none' },
   toggleOn:       { ...lbl, padding:'0.15rem 0.45rem', borderRadius:'3px', border:`1px solid ${NOMINAL}`, background:'rgba(85,214,124,0.12)', color:NOMINAL, cursor:'pointer', fontSize:'8px' },
   toggleOff:      { ...lbl, padding:'0.15rem 0.45rem', borderRadius:'3px', border:`1px solid ${LINE2}`, background:'none', color:FG4, cursor:'pointer', fontSize:'8px' },
+  toggleOffMuted: { ...lbl, padding:'0.15rem 0.45rem', borderRadius:'3px', border:`1px dashed ${LINE}`, background:'none', color:FG5, cursor:'pointer', fontSize:'8px', opacity:0.6 },
 
   // proactive card
   proactiveCard: { display:'flex', gap:'0.55rem', alignItems:'flex-start', background:'rgba(79,156,240,0.08)', border:`1px solid rgba(79,156,240,0.40)`, borderRadius:'4px', padding:'0.6rem 0.8rem', margin:'0 1.1rem 0.5rem' },

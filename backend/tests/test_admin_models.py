@@ -62,7 +62,7 @@ def _row(**overrides):
         id="z-ai/glm-5.3-flash", label="Glm 5.3 Flash", status="live", http_status=200,
         latency_ms=120, fail_count=0, enabled=False, price_in=None, price_out=None,
         context_window=None, supports_tools=None, reasoning=None, request_extras=None,
-        min_max_tokens=None, last_checked=now, first_seen=now, updated_at=now,
+        min_max_tokens=None, last_live_at=now, last_checked=now, first_seen=now, updated_at=now,
     )
     defaults.update(overrides)
     return ModelCatalog(**defaults)
@@ -201,6 +201,59 @@ class TestPatchCatalogModel:
         )
         assert resp.status_code == 200
         assert row.request_extras == {"reasoning_effort": "low"}
+
+    def test_enabling_a_never_live_model_is_409(self, monkeypatch):
+        """HANDOFF Phase 7 repro: status=timeout, fail_count=1, never live."""
+        row = _row(status="timeout", fail_count=1, enabled=False, last_live_at=None)
+
+        async def _fake_get_row(db, model_id):
+            return row
+
+        monkeypatch.setattr(admin_models, "get_row", _fake_get_row)
+        mock_db = _mock_db()
+        client = _make_client(mock_db)
+
+        resp = client.patch("/admin/models/z-ai/glm-5.3-flash", json={"enabled": True},
+                             headers={"Authorization": "Bearer x"})
+        assert resp.status_code == 409
+        assert resp.json()["detail"] == "never_live"  # bare string — frontend does an exact match
+        assert row.enabled is False  # never mutated
+
+    def test_enabling_a_previously_live_model_succeeds(self, monkeypatch):
+        """Same transient status/fail_count as the repro, but this model HAS
+        answered live before (last_live_at set) — the normal "tolerate one
+        blip" rule still applies, enabling must succeed."""
+        row = _row(status="timeout", fail_count=1, enabled=False,
+                    last_live_at=datetime.now(timezone.utc))
+
+        async def _fake_get_row(db, model_id):
+            return row
+
+        monkeypatch.setattr(admin_models, "get_row", _fake_get_row)
+        mock_db = _mock_db()
+        client = _make_client(mock_db)
+
+        resp = client.patch("/admin/models/z-ai/glm-5.3-flash", json={"enabled": True},
+                             headers={"Authorization": "Bearer x"})
+        assert resp.status_code == 200
+        assert row.enabled is True
+
+    def test_disabling_a_never_live_model_is_allowed(self, monkeypatch):
+        """The never_live guard only blocks enabling — disabling (turning a
+        mistakenly-enabled never-live row back off) must never be blocked."""
+        row = _row(status="timeout", fail_count=1, enabled=True, last_live_at=None)
+
+        async def _fake_get_row(db, model_id):
+            return row
+
+        monkeypatch.setattr(admin_models, "get_row", _fake_get_row)
+        mock_db = _mock_db()
+        client = _make_client(mock_db)
+
+        resp = client.patch("/admin/models/z-ai/glm-5.3-flash", json={"enabled": False},
+                             headers={"Authorization": "Bearer x"})
+        assert resp.status_code == 200
+        assert row.enabled is False
 
     def test_min_max_tokens_bounds_enforced_by_schema(self, monkeypatch):
         row = _row()

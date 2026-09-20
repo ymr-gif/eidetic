@@ -10,9 +10,11 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.security import get_current_user
-from config import MODELS
 from core.db import get_db
 from models import Conversation, Message, User
+
+from api.chat.model_resolve import _resolve_model
+from .lock import apply_locked_model
 
 logger = logging.getLogger("conversations")
 router = APIRouter()
@@ -52,6 +54,11 @@ async def list_conversations(
             "memory_enabled": True,
             "system_prompt":  c.system_prompt  or "",
             "locked_model":   c.locked_model   or "",
+            # Phase 3 (live model catalog): whether the stored locked_model
+            # still resolves to a routable model right now — a catalog pick
+            # the admin later disabled/delisted resolves to None here even
+            # though the DB value is untouched (stream falls back to Auto).
+            "locked_model_available": (_resolve_model(c.locked_model) is not None) if c.locked_model else None,
         }
         for c in convs
     ]
@@ -129,11 +136,10 @@ async def patch_conversation(
         conv.system_prompt = body.system_prompt.strip() or None if body.system_prompt else None
 
     if "locked_model" in updated:
-        raw = (body.locked_model or "").strip()
-        if not raw:
-            conv.locked_model = None
-        else:
-            conv.locked_model = MODELS.get(raw, raw) if raw in MODELS or raw in MODELS.values() else None
+        # Raises HTTP 422 model_unavailable if body.locked_model is non-empty
+        # and doesn't resolve to a routable model (role name/id or an
+        # available live-catalog id, Phase 3).
+        apply_locked_model(conv, body.locked_model)
 
     await db.commit()
     return {
@@ -141,6 +147,7 @@ async def patch_conversation(
         "memory_enabled": True,
         "system_prompt":  conv.system_prompt  or "",
         "locked_model":   conv.locked_model   or "",
+        "locked_model_available": (_resolve_model(conv.locked_model) is not None) if conv.locked_model else None,
     }
 
 

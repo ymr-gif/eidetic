@@ -11,6 +11,7 @@ import ToolLogPanel from '../ToolLogPanel'
 import AutomationsPanel from '../AutomationsPanel'
 import IntegrationsPanel from '../IntegrationsPanel'
 import InvitePanel from '../InvitePanel'
+import ModelCatalogPanel from '../ModelCatalogPanel'
 
 // Persistent right inspector. One group tab active; one sub-pane visible.
 // Panels keep their per-hook open flags (data-load-on-open effects depend on
@@ -19,13 +20,14 @@ export const DOCK_GROUPS = {
   mind:  [['memory', 'Memory'], ['goals', 'Goals'], ['insights', 'Insights']],
   files: [['files', 'Library']],
   ops:   [['usage', 'Usage'], ['toolLog', 'Tool log'], ['auto', 'Automations'], ['integ', 'Integrations']],
-  admin: [['invites', 'Invites']],
+  admin: [['invites', 'Invites'], ['models', 'Models']],
 }
 
 const PANES = {
   memory: MemoryPanel, goals: GoalsPanel, insights: InsightsPanel,
   files: FilesPanel, usage: UsagePanel, toolLog: ToolLogPanel,
   auto: AutomationsPanel, integ: IntegrationsPanel, invites: InvitePanel,
+  models: ModelCatalogPanel,
 }
 
 export default function Dock({ tab, sub, setTab, setSub, userRole }) {
@@ -37,6 +39,7 @@ export default function Dock({ tab, sub, setTab, setSub, userRole }) {
       memory: p.mem.setMemOpen, goals: p.goals.setGoalsOpen, insights: p.insights.setInsightsOpen,
       files: p.files.setFilesOpen, usage: p.usage.setUsageOpen, toolLog: p.toolLog.setToolLogOpen,
       auto: p.auto.setAutoOpen, integ: p.integ.setIntegOpen, invites: p.admin.setInviteOpen,
+      models: p.adminModels.setModelsOpen,
     }
     const active = tab ? sub : null
     for (const [key, set] of Object.entries(flag)) set(key === active)

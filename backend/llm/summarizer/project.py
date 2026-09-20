@@ -8,6 +8,7 @@ from config import MODELS
 from core.db import AsyncSessionLocal
 from models import Conversation, UserMemory, UserMemoryVersion
 from llm.nim import call
+from llm.model_extras import apply_request_extras
 from core.locks import user_write_lock
 from .prompts import _NO_UPDATE, _PROJECT_SYSTEM
 
@@ -69,6 +70,7 @@ Update the project state. Reply with the full updated state or {_NO_UPDATE}.\
             {"role": "user",   "content": prompt},
         ],
         request_id = f"proj-{user_id}",
+        model_params = apply_request_extras(_MODEL, None),
     )
 
     if not result.get("ok"):

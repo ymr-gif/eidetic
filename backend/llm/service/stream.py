@@ -13,6 +13,7 @@ from cache import get_cached_response, set_cached_response
 from observability import metrics, observability, events
 from llm.router import route, get_context_limit
 from llm.nim import call, call_stream
+from llm.model_extras import apply_request_extras
 from llm.tools import execute_tool, ASK_USER_PREFIX, CONFIRM_WRITE_PREFIX, CONFIRM_CALENDAR_PREFIX, TOOL_REGISTRY, ToolContext, get_tool, select_tool_schemas
 
 from models import ExternalSource
@@ -140,7 +141,7 @@ async def _resolve_connector_latches(actives: dict, latched: dict, conv_id, quer
     return out
 
 
-async def generate_response(message: str, request_id: str) -> dict:
+async def generate_response(message: str, request_id: str, model_override: str | None = None) -> dict:
     total_start = time.monotonic()
 
     try:
@@ -150,7 +151,12 @@ async def generate_response(message: str, request_id: str) -> dict:
     except Exception:
         pass
 
-    cached = await get_cached_response(message)  # non-streaming: no history context
+    # Cache key must mirror the write side below (model_override or "") — never
+    # the routed model — same invariant as the /chat/stream cache (backend/CLAUDE.md
+    # "cache" bullet): otherwise an explicit model pick could return another
+    # model's cached answer (or vice versa) and mis-attribute cost/billing.
+    cache_model = model_override or ""
+    cached = await get_cached_response(message, model=cache_model)  # non-streaming: no history context
     if cached:
         return {
             "response":      cached["response"],
@@ -160,12 +166,18 @@ async def generate_response(message: str, request_id: str) -> dict:
             "latency_ms":    0,
         }
 
-    model, _ = await route(message, request_id)
-    fallback_chain = [model] + [config.MODELS[k] for k in config.FALLBACK_ORDER if config.MODELS[k] != model]
+    if model_override:
+        fallback_chain = [model_override] + [config.MODELS[k] for k in config.FALLBACK_ORDER if config.MODELS[k] != model_override]
+    else:
+        model, _ = await route(message, request_id)
+        fallback_chain = [model] + [config.MODELS[k] for k in config.FALLBACK_ORDER if config.MODELS[k] != model]
 
     for idx, current_model in enumerate(fallback_chain):
         fallback_used = idx > 0
-        result  = await call(current_model, [{"role": "user", "content": message}], request_id)
+        # Reasoning-toggle extras (Phase 2c) apply to every model, every call —
+        # no thinking-on path, even for the reasoning role's own chat turns.
+        result  = await call(current_model, [{"role": "user", "content": message}], request_id,
+                              model_params=apply_request_extras(current_model, None))
         content = result.get("content")
 
         if not isinstance(content, str) or not content.strip():
@@ -182,7 +194,7 @@ async def generate_response(message: str, request_id: str) -> dict:
         }
 
         try:
-            await set_cached_response(message, payload)
+            await set_cached_response(message, payload, model=cache_model)
             metrics.record_cache_write()
         except Exception as e:
             logger.warning("[cache] write_failed err=%s", e)
@@ -476,6 +488,11 @@ async def generate_stream(
             yield {"type": "status", "stage": "fallback", "detail": f"Falling back → {current_model}", "level": "error"}
         tool_messages  = list(base_messages)
         ctx_window = get_context_limit(current_model)
+        # Reasoning-toggle extras (Phase 2c) apply to every model, every call —
+        # no thinking-on path, even for the reasoning role's own chat turns.
+        # Computed once per fallback attempt (current_model is fixed across the
+        # tool-iteration loop below).
+        _iter_params = apply_request_extras(current_model, model_params)
         max_out = (model_params or {}).get("max_tokens", 4096)
         if not isinstance(max_out, int):
             try:
@@ -513,7 +530,7 @@ async def generate_stream(
             _budget_reason   = None
 
             _t_call = time.monotonic()
-            _gen = call_stream(current_model, tool_messages, request_id, model_params, None if _force_no_tools else tools)
+            _gen = call_stream(current_model, tool_messages, request_id, _iter_params, None if _force_no_tools else tools)
             try:
                 async for chunk in _gen:
                     if isinstance(chunk, dict) and chunk.get("__budget_exceeded__"):

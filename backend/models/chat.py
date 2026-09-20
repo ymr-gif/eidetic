@@ -1,7 +1,7 @@
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from pgvector.sqlalchemy import Vector
+from pgvector.sqlalchemy import HALFVEC
 from datetime import datetime
 import uuid
 from config import EMBEDDING_DIM
@@ -50,7 +50,12 @@ class MessageEmbedding(Base):
     message_id:      Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("messages.id",      ondelete="CASCADE"), nullable=False, index=True)
     conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
     content_snippet: Mapped[str]       = mapped_column(Text, nullable=False)
-    embedding:       Mapped[list]      = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+    # halfvec since migration 049 (2026-09-19, nemotron-3-embed-1b @ 2048-d — plain
+    # `vector` HNSW caps at 2000 dims). Nullable (was NOT NULL pre-049): the migration
+    # drops+re-adds the column, so existing rows sit at NULL until re-embed backfills
+    # them in place (services/re_embed.py — UPDATEs existing rows, does not recreate
+    # deleted ones, which is why the migration nulls rather than deletes them).
+    embedding:       Mapped[list | None] = mapped_column(HALFVEC(EMBEDDING_DIM), nullable=True)
     created_at:      Mapped[datetime]  = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 

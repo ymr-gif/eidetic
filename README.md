@@ -15,7 +15,7 @@
 
 ![Demo — login, streamed reply, agent tool call with grounding badge](docs/assets/demo.gif)
 
-*Keyword-routed streaming reply (fast 8B → 120B reasoning), then the agent tool loop reading an attached file — with per-reply model, token/cost meter, and retrieval-grounding badges.*
+*Keyword-routed streaming reply (fast llama role → reasoning role), then the agent tool loop reading an attached file — with per-reply model, token/cost meter, and retrieval-grounding badges.*
 
 ## Try it live
 
@@ -41,7 +41,7 @@ flowchart TB
 
     subgraph API["FastAPI (uvicorn, async)"]
         direction TB
-        Router["Keyword router<br/>llama 8B · DeepSeek coder · gpt-oss 120B<br/>fallback chain · circuit breaker · retry/jitter"]
+        Router["Keyword router<br/>llama role · coder role · reasoning role<br/>fallback chain · circuit breaker · retry/jitter"]
         RAG["RAG pipeline<br/>pgvector cosine + BM25 → RRF / weighted fusion<br/>adaptive policy: factual · relational · temporal · broad"]
         Memory["Memory engine<br/>compressed history · salience facts<br/>conflict detection · preference extraction · compaction"]
         GraphMem["Graph memory<br/>entity + relation extraction · 500-entity cap"]
@@ -65,6 +65,7 @@ flowchart TB
 
 ### Inference & Routing
 - **Keyword classifier** automatically picks the right model for the task; supports per-request override and per-conversation model lock
+- **Live model catalog** (admin-curated): scheduled scanner probes available NVIDIA NIM models; admins enable/disable, set per-model pricing and request extras; users can search and pick models by name, lock conversations to them, or compare 2–4 models side-by-side
 - **Fallback chain**: `chosen model → reasoning → coder → llama` — never drops a request if a model is available
 - **Circuit breaker**: 5 consecutive failures trip the circuit; 90s cooldown; Redis-persisted across restarts; pre-tripped at startup if a model probe fails
 - **Retry with jitter**: up to 4 attempts with exponential + jitter backoff (~1s / 2s / 4s / 8s)
@@ -236,10 +237,10 @@ DELETE /auth/me/webhook-token   — revoke token
 
 | Role | Model | Env var |
 |---|---|---|
-| General | `meta/llama-3.1-8b-instruct` | `MODEL_LLAMA` |
-| Coder | `deepseek-ai/deepseek-v4-flash` | `MODEL_CODER` |
-| Reasoning | `openai/gpt-oss-120b` | `MODEL_REASONING` |
-| Embedding | `nvidia/nv-embedqa-e5-v5` (1024d) | `MODEL_EMBEDDING` |
+| General | `openai/gpt-oss-20b` | `MODEL_LLAMA` |
+| Coder | `deepseek-ai/deepseek-v4-flash-0731` | `MODEL_CODER` |
+| Reasoning | `nvidia/nemotron-3-super-120b-a12b` | `MODEL_REASONING` |
+| Embedding | `nvidia/nemotron-3-embed-1b` (2048d) | `MODEL_EMBEDDING` |
 
 Model selection priority: `per-request override > conversation lock > keyword router`
 
@@ -405,10 +406,10 @@ See `.env.example` for all variables. Commonly changed:
 | `REQUIRE_INVITE` | `false` | Gate registration behind invite tokens |
 | `REQUEST_TIMEOUT` | `30` | NIM request timeout (seconds) |
 | `MAX_CONCURRENT_REQUESTS` | `10` | Max parallel NIM requests (cap 50) |
-| `MODEL_LLAMA` | `meta/llama-3.1-8b-instruct` | Override general model |
-| `MODEL_CODER` | `deepseek-ai/deepseek-v4-flash` | Override coder model |
-| `MODEL_REASONING` | `openai/gpt-oss-120b` | Override reasoning model |
-| `MODEL_EMBEDDING` | `nvidia/nv-embedqa-e5-v5` | Changing this triggers a full re-embed |
+| `MODEL_LLAMA` | `openai/gpt-oss-20b` | Override general model |
+| `MODEL_CODER` | `deepseek-ai/deepseek-v4-flash-0731` | Override coder model |
+| `MODEL_REASONING` | `nvidia/nemotron-3-super-120b-a12b` | Override reasoning model |
+| `MODEL_EMBEDDING` | `nvidia/nemotron-3-embed-1b` | Changing this triggers a full re-embed (now 2048d) |
 | `BACKUP_SCHEDULE` | `0 2 * * *` | Cron for automated DB backup |
 | `LLM_BACKEND` | `nim` | `nim` \| `homeserver` — flip to local llama.cpp stack |
 | `INTEGRATION_SECRET` | — | Fernet key (44-char base64url) for connector credentials; OAuth endpoints 503 without it |

@@ -44,15 +44,59 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL")
 
 # ── Model routing ─────────────────────────────────────────────────────────────
+# 2026-09-19 NIM EOL recovery: meta/llama-3.1-8b-instruct, deepseek-ai/deepseek-v4-flash
+# and meta/llama-3.3-70b-instruct (already-retired reasoning fallback) all started
+# returning 410 Gone. Swapped to the live replacements below — see BUGS.md /
+# HANDOFF_ARCHIVE.md for the full EOL timeline.
 MODELS = {
-    "llama":     os.getenv("MODEL_LLAMA",     "meta/llama-3.1-8b-instruct"),
-    "coder":     os.getenv("MODEL_CODER",     "deepseek-ai/deepseek-v4-flash"),
-    "reasoning": os.getenv("MODEL_REASONING", "meta/llama-3.3-70b-instruct"),
+    "llama":     os.getenv("MODEL_LLAMA",     "openai/gpt-oss-20b"),
+    "coder":     os.getenv("MODEL_CODER",     "deepseek-ai/deepseek-v4-flash-0731"),
+    "reasoning": os.getenv("MODEL_REASONING", "nvidia/nemotron-3-super-120b-a12b"),
 }
 
-MODEL_EMBEDDING   = os.getenv("MODEL_EMBEDDING",   "nvidia/nv-embedqa-e5-v5")
+# nvidia/nv-embedqa-e5-v5 EOL'd 08-25 → nvidia/nemotron-3-embed-1b is the only live
+# NIM embedder (user-chosen option A, 2026-09-19); it is fixed at 2048-d (the
+# `dimensions` param accepts only 2048 — no truncation to 1024). EMBEDDING_DIM now
+# follows LLM_BACKEND: 2048 by default here (NIM mode), forced back to 1024 in the
+# home-server override block below (bge-large-en-v1.5). A flip either direction
+# needs alembic migration 049 (halfvec(2048) columns) plus a full re-embed — no
+# longer the "no re-embed" no-op it used to be when both sides were 1024-d.
+MODEL_EMBEDDING   = os.getenv("MODEL_EMBEDDING",   "nvidia/nemotron-3-embed-1b")
 MODEL_VISION      = os.getenv("MODEL_VISION",      "meta/llama-3.2-90b-vision-instruct")
-EMBEDDING_DIM     = int(os.getenv("EMBEDDING_DIM", "1024"))
+EMBEDDING_DIM     = int(os.getenv("EMBEDDING_DIM", "2048"))
+
+# ── Reasoning-model request budget hotfix (Phase 2b/2c, 2026-09-20) ────────────
+# All three live chat models above are reasoning models: hidden reasoning tokens
+# are spent out of `max_tokens` before any visible `content` appears, so a short
+# auxiliary call (title/classifier/...) with a small cap came back empty
+# (nim_empty_content) and a real chat turn with a low cap truncated to nothing.
+# Verified live 2026-09-20 via direct curl (max_tokens=60, "capital of France"):
+# each field below drops completion tokens from ~50 to 2-15 and returns content.
+# Phase 2b applied these only to "fast" auxiliary calls, keeping thinking ON for
+# the reasoning role's own chat turns. Phase 2c dropped that split after root
+# found nemotron-3-super intermittently leaks chain-of-thought straight into
+# `content` when thinking is on (live conv 7e32749a...) — these fields now apply
+# to EVERY call for a listed model, no exceptions. Applied per call site via
+# llm/model_extras.py:apply_request_extras — never here directly. Unknown ids
+# (future catalog models, the homeserver alias) are not in this table and get
+# no extras, ever.
+MODEL_REQUEST_EXTRAS: dict[str, dict] = {
+    "openai/gpt-oss-20b":                 {"reasoning_effort": "low"},          # no full off switch
+    "nvidia/nemotron-3-super-120b-a12b":  {"chat_template_kwargs": {"enable_thinking": False}},
+    "deepseek-ai/deepseek-v4-flash-0731": {"chat_template_kwargs": {"thinking": False}},
+}
+# Per-model max_tokens floor (Phase 2c) for a model whose lowest reasoning
+# setting still isn't a full off switch and can starve a small budget — verified
+# live: gpt-oss-20b at reasoning_effort=low still nim_empty_content'd at
+# max_tokens=60. Only raises an EXPLICITLY-set max_tokens below the floor — an
+# absent max_tokens already means "uncapped", which can't starve. A model not
+# listed here gets no floor. Replaces the old single REASONING_MAX_TOKENS_FLOOR
+# (removed — it only applied to the reasoning role's thinking-on path, which no
+# longer exists).
+GPT_OSS_20B_MIN_MAX_TOKENS = _int_env("GPT_OSS_20B_MIN_MAX_TOKENS", 512)
+MODEL_MIN_MAX_TOKENS: dict[str, int] = {
+    "openai/gpt-oss-20b": GPT_OSS_20B_MIN_MAX_TOKENS,
+}
 
 # ── Reliability ───────────────────────────────────────────────────────────────
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", 30))
@@ -96,10 +140,13 @@ LLM_HEALTH_TIMEOUT   = float(os.getenv("LLM_HEALTH_TIMEOUT", 2)) # s, probe time
 LLM_PRIMARY_API_KEY  = os.getenv("LLM_PRIMARY_API_KEY", "")
 
 # ── Per-model rate limits (req / 60s) — applied only on explicit model selection
+# "catalog": shared bucket for any explicitly-picked model that is NOT one of the
+# three named roles (i.e. a live-catalog pick, Phase 3) — see rate_limiter/model_limits.py.
 MODEL_RATE_LIMITS: dict[str, tuple[int, int]] = {
     "llama":     (_int_env("RATE_LIMIT_LLAMA",     15), 60),
     "coder":     (_int_env("RATE_LIMIT_CODER",     10), 60),
     "reasoning": (_int_env("RATE_LIMIT_REASONING",  5), 60),
+    "catalog":   (_int_env("RATE_LIMIT_CATALOG",   20), 60),
 }
 
 # ── Observability / Redis Streams ─────────────────────────────────────────────
@@ -202,25 +249,55 @@ ROUTER_SYSTEM_PROMPT = (
 
 # ── Context window sizes per model ───────────────────────────────────────────
 CONTEXT_WINDOWS: dict[str, int] = {
-    "meta/llama-3.1-8b-instruct":               131072,
-    "deepseek-ai/deepseek-v4-flash":              32768,
+    # retired 2026-09-19 (410 Gone) — kept commented-out entries below the live
+    # rows; legacy Message rows still name these ids so the dict stays a record.
+    # "meta/llama-3.1-8b-instruct":               131072,  # EOL 08-26
+    # "deepseek-ai/deepseek-v4-flash":              32768,  # EOL 08-07
+    # "openai/gpt-oss-120b":                       131072,  # EOL 09-03
+    # "nvidia/llama-3.3-nemotron-super-49b-v1":    131072,  # gone alongside gpt-oss-120b (was the fallback)
     "meta/llama-3.3-70b-instruct":               131072,
     "meta/llama-3.2-90b-vision-instruct":        131072,
-    "nvidia/llama-3.3-nemotron-super-49b-v1":    131072,
-    "openai/gpt-oss-120b":                       131072,
+    # live as of 2026-09-19 — context windows per NVIDIA model cards; 32768 used
+    # as the safe floor where a card figure wasn't confirmable.
+    "openai/gpt-oss-20b":                        131072,
+    "deepseek-ai/deepseek-v4-flash-0731":         32768,
+    "nvidia/nemotron-3-super-120b-a12b":         131072,
+    "mistralai/mistral-nemotron":                 32768,
 }
 DEFAULT_CONTEXT_WINDOW = 131072
 
 # ── Model pricing — verify at build.nvidia.com/explore/llm ───────────────────
 # $/1M tokens: input and output rates
 MODEL_PRICING: dict[str, dict[str, float]] = {
-    "meta/llama-3.1-8b-instruct":               {"input": 0.10, "output": 0.10},
-    "deepseek-ai/deepseek-v4-flash":             {"input": 0.20, "output": 0.60},
+    # retired 2026-09-19 (410 Gone) — commented out as a record only; historical
+    # rows already carry their cost_usd, so nothing prices these ids any more.
+    # "meta/llama-3.1-8b-instruct":               {"input": 0.10, "output": 0.10},  # EOL 08-26
+    # "deepseek-ai/deepseek-v4-flash":             {"input": 0.20, "output": 0.60},  # EOL 08-07
+    # "openai/gpt-oss-120b":                       {"input": 0.05, "output": 0.15},  # EOL 09-03
+    # "nvidia/llama-3.3-nemotron-super-49b-v1":    {"input": 0.10, "output": 0.40},  # gone alongside gpt-oss-120b
     "meta/llama-3.3-70b-instruct":               {"input": 0.77, "output": 0.77},
     "meta/llama-3.2-90b-vision-instruct":        {"input": 0.16, "output": 0.16},
-    "nvidia/llama-3.3-nemotron-super-49b-v1":    {"input": 0.10, "output": 0.40},
-    "openai/gpt-oss-120b":                       {"input": 0.05, "output": 0.15},
+    # live as of 2026-09-19 — rates unconfirmed at NVIDIA (catalog just swapped),
+    # set no lower than the retired predecessor's rate; conservative estimates,
+    # revisit once build.nvidia.com/explore/llm publishes real numbers.
+    "openai/gpt-oss-20b":                        {"input": 0.05, "output": 0.15},
+    "deepseek-ai/deepseek-v4-flash-0731":        {"input": 0.20, "output": 0.60},
+    "nvidia/nemotron-3-super-120b-a12b":         {"input": 0.10, "output": 0.40},
+    "mistralai/mistral-nemotron":                {"input": 0.20, "output": 0.60},
 }
+
+# ── Live model catalog (HANDOFF Phase 3, 2026-09-20) ─────────────────────────
+# Admin-curated list of every model NIM's /v1/models currently serves, scanned
+# every 6h + on manual Rescan (llm/catalog/scanner.py). DEFAULT_MODEL_PRICE_*
+# bills any catalog model an admin enables but never sets a price for (user
+# decision: unpriced models are billed at a default rate, not $0 — see
+# llm/catalog/pricing.py:get_pricing). CATALOG_PROBE_* bound the scanner's raw
+# httpx probes (bypasses circuit breakers + metrics — maintenance traffic, not
+# a user turn).
+DEFAULT_MODEL_PRICE_IN    = float(os.getenv("DEFAULT_MODEL_PRICE_IN", "0.50"))
+DEFAULT_MODEL_PRICE_OUT   = float(os.getenv("DEFAULT_MODEL_PRICE_OUT", "1.50"))
+CATALOG_PROBE_CONCURRENCY = _int_env("CATALOG_PROBE_CONCURRENCY", 6)
+CATALOG_PROBE_TIMEOUT     = _int_env("CATALOG_PROBE_TIMEOUT", 20)
 
 # ── Notifications / Web Push (Phase 3c) ──────────────────────────────────────
 VAPID_PUBLIC_KEY  = os.getenv("VAPID_PUBLIC_KEY", "")
@@ -258,10 +335,17 @@ if LLM_BACKEND == "homeserver":
     NIM_URL                = HOMESERVER_CHAT_URL
     NIM_EMBEDDING_URL      = HOMESERVER_EMBED_URL
     MODELS                 = {role: HOMESERVER_MODEL for role in MODELS}   # collapse 3 roles → one Mixtral (Q-A5)
-    MODEL_EMBEDDING        = HOMESERVER_EMBED_MODEL                        # 1024-d, no re-embed (Q-B1)
+    MODEL_EMBEDDING        = HOMESERVER_EMBED_MODEL                        # bge-large-en-v1.5, 1024-d (Q-B1)
     CONTEXT_WINDOWS        = {HOMESERVER_MODEL: HOMESERVER_CTX}
     DEFAULT_CONTEXT_WINDOW = HOMESERVER_CTX                                # 32768 — budget allocator sizes correctly (Q-A3)
-    # EMBEDDING_DIM stays 1024 in both modes → no migration / re-embed.
+    # EMBEDDING_DIM: forced to 1024 here regardless of the env var (bge-large-en-v1.5
+    # is fixed at 1024-d) — NOT free anymore as of 2026-09-19: the NIM side moved to
+    # nemotron-3-embed-1b at 2048-d, so `message_embeddings`/`file_chunks.embedding`
+    # are now `halfvec(2048)` (migration 049). Flipping LLM_BACKEND in either
+    # direction is a real vector-space change: run 049's downgrade (halfvec(2048) →
+    # vector(1024)) or a fresh forward migration, then a full re-embed — the two
+    # backends can no longer share one column width.
+    EMBEDDING_DIM           = 1024
     # MODEL_RATE_LIMITS / MODEL_PRICING left keyed by NIM roles: cosmetic only,
     # router is telemetry-only in homeserver mode.
 

@@ -27,7 +27,7 @@ Please remember all of this.
 ```
 Here's the architecture I want you to retain:
 
-The gateway routes to three NIM models based on keywords: llama (meta/llama-3.1-8b-instruct) for general queries, coder (deepseek-ai/deepseek-v4-flash) for code, reasoning (meta/llama-3.3-70b-instruct) for complex tasks. There's a fallback chain: chosen model → reasoning → coder → llama.
+The gateway routes to three NIM models based on keywords: llama (openai/gpt-oss-20b) for general queries, coder (deepseek-ai/deepseek-v4-flash-0731) for code, reasoning (nvidia/nemotron-3-super-120b-a12b) for complex tasks. There's a fallback chain: chosen model → reasoning → coder → llama.
 
 There's a circuit breaker: 5-failure threshold, 90-second cooldown, Redis-persisted so state survives container restarts.
 
@@ -58,7 +58,7 @@ The memory system I built has several layers, injected in this order:
 
 Memory writes happen when token count exceeds 3000 or every 10 assistant messages. History compresses at 4000 tokens or every 15 messages. Compaction is LLM-driven dedup, queued via ARQ or daily at 3 AM UTC.
 
-Neo4j stores entities per user, capped at 500. Graph extraction uses the 70B reasoning model. Cache invalidates on every write.
+Neo4j stores entities per user, capped at 500. Graph extraction uses the reasoning model. Cache invalidates on every write.
 
 Store this.
 ```

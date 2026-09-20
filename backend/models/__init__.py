@@ -7,11 +7,12 @@ from .integration import ExternalSource
 from .notification import UserNotificationPreferences, PushSubscription
 from .prompts_scheduled import PromptTemplate, ScheduledPrompt, ScheduledPromptRun
 from .system import SystemConfig
+from .catalog import ModelCatalog
 
 __all__ = [
     "AdminAuditLog", "Conversation", "ConversationFile", "ExternalSource", "File", "FileChunk",
-    "FileVersion", "Invitation", "MemoryConflict", "Message", "MessageEmbedding", "PromptTemplate",
-    "PushSubscription", "ScheduledPrompt", "ScheduledPromptRun", "SystemConfig", "ToolCallLog",
-    "User", "UserBehaviorProfile", "UserGoal", "UserInsight", "UserMemory", "UserMemoryVersion",
-    "UserNotificationPreferences", "WebhookEvent",
+    "FileVersion", "Invitation", "MemoryConflict", "Message", "MessageEmbedding", "ModelCatalog",
+    "PromptTemplate", "PushSubscription", "ScheduledPrompt", "ScheduledPromptRun", "SystemConfig",
+    "ToolCallLog", "User", "UserBehaviorProfile", "UserGoal", "UserInsight", "UserMemory",
+    "UserMemoryVersion", "UserNotificationPreferences", "WebhookEvent",
 ]

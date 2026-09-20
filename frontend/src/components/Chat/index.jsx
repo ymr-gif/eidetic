@@ -6,6 +6,8 @@ import useConversations from '../../hooks/useConversations.js'
 import useMemory from '../../hooks/useMemory.js'
 import useFiles from '../../hooks/useFiles.js'
 import useModelParams from '../../hooks/useModelParams.js'
+import useModelCatalog from '../../hooks/useModelCatalog.js'
+import useAdminModels from '../../hooks/useAdminModels.js'
 import useSettings from '../../hooks/useSettings.js'
 import useToolLogs from '../../hooks/useToolLogs.js'
 import useUsage from '../../hooks/useUsage.js'
@@ -41,6 +43,8 @@ export default function Chat({ token, onLogout }) {
   const admin = useAdmin(token)
   const insights = useInsights(token)
   const modelParams = useModelParams()
+  const catalog = useModelCatalog(token)
+  const adminModels = useAdminModels(token)
   const search = useSearch(token)
   const auto   = useScheduledPrompts(token)
   const goals  = useGoals(token)
@@ -69,6 +73,7 @@ export default function Chat({ token, onLogout }) {
     token, conv, modelParams, mem, insights, onLogout,
     onCalendarWrite: setPendingCalendarWrite,
     onTtft: setLastTtft, onLinkState: setLinkFault,
+    onModelNotice: showToast,
   })
 
   function openDock(tab, sub) {
@@ -87,8 +92,14 @@ export default function Chat({ token, onLogout }) {
     if (c) {
       settings.setEditSysPrompt(c.system_prompt || '')
       settings.setEditLockModel(c.locked_model || '')
+      settings.setConvLockModelAvailable(c.locked_model_available ?? true)
     }
     if (narrow) setRailOpen(false)
+  }
+
+  function showToast(msg) {
+    setToastMsg(msg)
+    setTimeout(() => setToastMsg(null), 5000)
   }
 
   async function handleAcceptWrite(fact) {
@@ -111,15 +122,14 @@ export default function Chat({ token, onLogout }) {
       if (r.ok) {
         const data = await r.json()
         setPendingCalendarWrite(null)
-        setToastMsg(data.summary || 'Calendar event created')
+        showToast(data.summary || 'Calendar event created')
       } else {
         const err = await r.json().catch(() => ({ detail: 'Request failed' }))
-        setToastMsg(err.detail || 'Calendar write failed')
+        showToast(err.detail || 'Calendar write failed')
       }
     } catch (err) {
-      setToastMsg(`Network error: ${err.message}`)
+      showToast(`Network error: ${err.message}`)
     }
-    setTimeout(() => setToastMsg(null), 5000)
   }
 
   function handleDismissCalendarWrite() {
@@ -135,7 +145,7 @@ export default function Chat({ token, onLogout }) {
   const diffTarget      = useMemo(() => mem.diffIdx !== null ? mem.memHistory[mem.diffIdx] : null, [mem.diffIdx, mem.memHistory])
   const diffLines       = useMemo(() => diffTarget ? computeDiff((diffTarget.content||'')+'\n'+(diffTarget.project_summary||''), (mem.memData?.content||'')+'\n'+(mem.memData?.project_summary||'')) : [], [diffTarget, mem.memData])
 
-  const ctx = { token, conv, mem, settings, files, toolLog, usage, admin, insights, modelParams, search, auto, goals, integ, onboarding, notificationPrefs, voice, hasMemory, sections, projectSections, wordCount, panelSlide, diffTarget, diffLines, importRef, selectConv, handleAcceptWrite, handleDismissWrite, fmtDate }
+  const ctx = { token, conv, mem, settings, files, toolLog, usage, admin, adminModels, insights, modelParams, catalog, search, auto, goals, integ, onboarding, notificationPrefs, voice, hasMemory, sections, projectSections, wordCount, panelSlide, diffTarget, diffLines, importRef, selectConv, handleAcceptWrite, handleDismissWrite, showToast, fmtDate }
 
   // fetch user role on mount
   useEffect(() => {
@@ -226,6 +236,7 @@ export default function Chat({ token, onLogout }) {
                 onDismissCalendarWrite={handleDismissCalendarWrite}
                 toastMsg={toastMsg}
                 onOpenMemory={() => openDock('mind', 'memory')}
+                labelFor={catalog.labelFor}
               />
 
               <ModelToolbar
@@ -254,6 +265,9 @@ export default function Chat({ token, onLogout }) {
                 loading={conv.loading}
                 send={send}
                 voice={voice}
+                catalog={catalog}
+                compareModels={modelParams.compareModels}
+                setCompareModels={modelParams.setCompareModels}
               />
             </div>
 
@@ -276,6 +290,7 @@ export default function Chat({ token, onLogout }) {
           onClose={() => setPaletteOpen(false)}
           openDock={openDock}
           onLogout={onLogout}
+          onToast={showToast}
         />
       </div>
     </PanelPropsCtx.Provider>

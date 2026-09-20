@@ -1,9 +1,13 @@
+import { useState } from 'react'
 import s, { NOMINAL } from '../../../lib/chatStyles.js'
 import ParamSlider from '../../ParamSlider.jsx'
+import ComparePicker from './ComparePicker.jsx'
+import { MODEL_KEYS } from '../../../lib/chatConstants.js'
 
 export default function ModelToolbar({
   selectedModel, setSelectedModel,
   compareMode, setCompareMode,
+  compareModels, setCompareModels,
   paramsOpen, setParamsOpen,
   tempEnabled, setTempEnabled, temperature, setTemperature,
   tokensEnabled, setTokensEnabled, maxTokens, setMaxTokens,
@@ -12,25 +16,44 @@ export default function ModelToolbar({
   input, setInput, loading,
   send,
   voice,
+  catalog,
 }) {
+  const [comparePickerOpen, setComparePickerOpen] = useState(false)
+  const catalogSelected = selectedModel !== 'auto' && !['llama', 'coder', 'reasoning'].includes(selectedModel)
+
   return (
     <div>
       <div style={s.toolbarWrap}>
         <div style={s.toolbar}>
           <div style={s.modelPills}>
-            {[['auto', 'Auto'], ['llama', 'LLaMA 8B'], ['coder', 'DeepSeek'], ['reasoning', '120B']].map(([key, label]) => (
+            {[['auto', 'Auto'], ['llama', catalog?.labelFor(MODEL_KEYS.llama)], ['coder', catalog?.labelFor(MODEL_KEYS.coder)], ['reasoning', catalog?.labelFor(MODEL_KEYS.reasoning)]].map(([key, label]) => (
               <button key={key} onClick={() => setSelectedModel(key)}
                 style={{ ...s.pill, ...(selectedModel === key ? s.pillActive : {}) }}>
                 {label}
               </button>
             ))}
+            {catalogSelected && (
+              <span style={{ ...s.pill, ...s.pillActive, display:'inline-flex', alignItems:'center', gap:'0.35rem' }}>
+                {catalog?.labelFor(selectedModel) || selectedModel}
+                <span style={s.chipX} onClick={() => setSelectedModel('auto')} title="Clear model pick">✕</span>
+              </span>
+            )}
           </div>
-          <div style={s.toolRight}>
-            <button onClick={() => setCompareMode(!compareMode)}
+          <div style={{ ...s.toolRight, position:'relative' }}>
+            <button onClick={() => { if (compareMode) { setCompareMode(false); setComparePickerOpen(false) } else { setComparePickerOpen(o => !o) } }}
               style={{ ...s.pill, ...(compareMode ? s.pillCompare : {}) }}
-              title="Run same prompt on all 3 models side by side">
-              ⊞ Compare
+              title={compareMode ? 'Turn off compare mode' : 'Pick models to compare side by side'}>
+              ⊞ Compare{compareMode ? ` (${(compareModels || []).length || 3})` : ''}
             </button>
+            {comparePickerOpen && (
+              <ComparePicker
+                catalog={catalog}
+                compareModels={compareModels}
+                setCompareModels={setCompareModels}
+                setCompareMode={setCompareMode}
+                onClose={() => setComparePickerOpen(false)}
+              />
+            )}
             <button onClick={() => setParamsOpen(!paramsOpen)}
               style={{ ...s.pill, ...(paramsOpen ? s.pillActive : {}) }}
               title="Temperature / max tokens / top-p">

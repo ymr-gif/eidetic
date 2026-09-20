@@ -238,21 +238,25 @@ async def check_model_rate(full_model_name: str, username: str) -> None:
     Apply per-model rate limit for an explicitly chosen model.
     Only called when user selects a specific model (override or locked).
     Fail-open on Redis unavailability.
+
+    Bucket resolution (role vs. shared catalog bucket, demo halving) lives in
+    rate_limiter/model_limits.py (pre-split, HANDOFF Phase 3) — this function
+    only owns the Redis sliding-window mechanics.
     """
-    from config import MODELS, MODEL_RATE_LIMITS
+    from rate_limiter.model_limits import resolve_bucket
 
-    model_key = next((k for k, v in MODELS.items() if v == full_model_name), None)
-    if not model_key or model_key not in MODEL_RATE_LIMITS:
+    bucket = resolve_bucket(full_model_name, username)
+    if bucket is None:
         return
+    bucket_key, limit_count, window = bucket
 
-    limit_count, window = MODEL_RATE_LIMITS[model_key]
     now = time.time()
-    key = f"rate:model:{model_key}:user:{username}"
+    key = f"rate:model:{bucket_key}:user:{username}"
 
     try:
         redis = get_redis_client()
     except RuntimeError:
-        logger.warning("[rate_limiter] fail-open (Redis unavailable) scope=model:%s user=%s", model_key, username)
+        logger.warning("[rate_limiter] fail-open (Redis unavailable) scope=model:%s user=%s", bucket_key, username)
         return
 
     try:
@@ -267,9 +271,9 @@ async def check_model_rate(full_model_name: str, username: str) -> None:
         if count > limit_count:
             raise HTTPException(
                 status_code=429,
-                detail=f"Rate limit exceeded for {model_key} ({limit_count} req/min)",
+                detail=f"Rate limit exceeded for {bucket_key} ({limit_count} req/min)",
             )
     except RedisError as e:
-        logger.warning("[rate_limiter] fail-open (RedisError) scope=model:%s user=%s err=%s", model_key, username, e)
+        logger.warning("[rate_limiter] fail-open (RedisError) scope=model:%s user=%s err=%s", bucket_key, username, e)
         return
 

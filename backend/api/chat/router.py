@@ -6,15 +6,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from auth import get_current_user
 from core.db import get_db
 from llm import service
+from llm.catalog import cache as catalog_cache
 from models import User
 from observability import events, metrics, observability
 from observability.prom_metrics import (
     ERROR_COUNT, LATENCY, MODEL_LATENCY, MODEL_USAGE,
     REQUEST_COUNT, REQUEST_LATENCY,
 )
-from rate_limiter import limit
+from rate_limiter import limit, check_model_rate
 
-from .helpers import _check_cost_cap
+from .helpers import _check_cost_cap, _resolve_model
 from .schemas import ChatRequest
 from .usage_ledger import record_stateless_usage
 
@@ -35,6 +36,12 @@ async def chat(
     # via the stateless /chat path. Checked BEFORE the try below so the 402
     # HTTPException isn't swallowed by the generic error handler.
     await _check_cost_cap(current_user, db)
+    # Phase 3 (live model catalog): refresh the in-process snapshot (15s-guarded,
+    # no-op most calls) before resolving model_override against it.
+    await catalog_cache.ensure_fresh()
+    effective_model = _resolve_model(req.model_override)
+    if effective_model:
+        await check_model_rate(effective_model, current_user.username)
     t_start      = metrics.record_request_start()
     status       = "success"
     error_type   = None
@@ -43,7 +50,7 @@ async def chat(
     fallback_used= False
 
     try:
-        result = await service.generate_response(req.message, rid)
+        result = await service.generate_response(req.message, rid, model_override=effective_model)
         model_used    = result.get("model", "unknown")
         cache_hit     = result.get("cache_hit", False)
         fallback_used = result.get("fallback_used", False)

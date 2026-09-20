@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 
-from config import MODEL_PRICING
+from llm.catalog.pricing import get_pricing
 from models import Conversation, Message
 
 logger = logging.getLogger("usage_ledger")
@@ -33,7 +33,7 @@ def tokens_and_cost(
     Mirrors background._calculate_tokens_and_cost: NIM usage when present, else the
     4-chars-per-token heuristic (flagged estimated, like migration 032 backfills).
     """
-    pricing = MODEL_PRICING.get(model, {})
+    pricing = get_pricing(model)
     if usage and isinstance(usage, dict):
         prompt_tokens     = usage.get("prompt_tokens", 0)
         completion_tokens = usage.get("completion_tokens", 0)

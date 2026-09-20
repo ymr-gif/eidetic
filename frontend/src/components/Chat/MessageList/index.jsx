@@ -26,7 +26,9 @@ export default function MessageList({
   pendingCalendarWrite, onAcceptCalendarWrite, onDismissCalendarWrite,
   toastMsg,
   onOpenMemory,
+  labelFor,
 }) {
+  const modelLabel = id => (labelFor ? labelFor(id) : (MODEL_LABELS[id] || id))
   const firstAiIdx = messages.findIndex(m => m.role === 'ai')
   return (
     <div style={s.feed}>
@@ -38,16 +40,16 @@ export default function MessageList({
             <Fragment key={m.id}>
               {isFirstAi && <div style={{ fontSize:'12px', color:FG4, marginBottom:'0.4rem' }}>✦ {lastSession}</div>}
               <div style={s.compareRow}>
-                {COMPARE_MODELS.map(model => {
+                {(m.compareOrder && m.compareOrder.length ? m.compareOrder : COMPARE_MODELS).map(model => {
                   const resp = m.responses[model] || { text: '', streaming: false }
                   return (
                     <div key={model} style={s.compareCard}>
-                      <div style={s.cardHeader}>{MODEL_LABELS[model]}</div>
+                      <div style={s.cardHeader}>{m.compareLabels?.[model] || modelLabel(model)}</div>
                       {(resp.streaming || !resp.text)
                         ? <p style={s.text}>{resp.text || <span style={{ color:FG5 }}>…</span>}{resp.streaming && <span style={s.cursor} />}</p>
                         : <div className="md-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{resp.text}</ReactMarkdown></div>
                       }
-                      <span style={s.cardModel}>{MODEL_SUBLABELS[model]}</span>
+                      <span style={s.cardModel}>{MODEL_SUBLABELS[model] || ''}</span>
                     </div>
                   )
                 })}
@@ -82,7 +84,7 @@ export default function MessageList({
                 </div>
               </div>
             )}
-            {m.model && !m.streaming && <span style={s.tag}>{MODEL_LABELS[m.model] || m.model} · {MODEL_SUBLABELS[m.model] || ''}</span>}
+            {m.model && !m.streaming && <span style={s.tag}>{modelLabel(m.model)} · {MODEL_SUBLABELS[m.model] || ''}</span>}
             {m.totalTokens && !m.streaming && <span style={s.tokMeta}>{m.totalTokens.toLocaleString()} tok · ${(m.costUsd || 0).toFixed(5)}
               {m.queryType && m.role === 'ai' ? ` · ${m.queryType}` : ''}
               {m.role === 'ai' && m.srcCount > 0 ? <span style={{ color: m.srcCount >= 3 ? NOMINAL : AMBER }}> · {m.srcCount} src</span> : null}

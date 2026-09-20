@@ -12,7 +12,7 @@ import pytest
 
 from llm.retriever.main import retrieve
 from tests.retrieval.conftest import (
-    CONV_ID, QUERY_EMB_1024, _mock_db, _make_vector_row, _make_bm25_row, CHUNK_A_ID,
+    CONV_ID, QUERY_EMB_2048, _mock_db, _make_vector_row, _make_bm25_row, CHUNK_A_ID,
 )
 
 
@@ -27,7 +27,7 @@ async def test_exclude_ids_applied_to_dense_and_bm25():
     bm25_rows = [_make_bm25_row(CHUNK_A_ID, CONV_ID, "prior answer echo", 0.9)]
     db = _mock_db(vector_rows, bm25_rows)
 
-    await retrieve(db, QUERY_EMB_1024, CONV_ID, query_text="anything",
+    await retrieve(db, QUERY_EMB_2048, CONV_ID, query_text="anything",
                    exclude_message_ids=exclude)
 
     stmts = [c.args[0] for c in db.execute.call_args_list]
@@ -44,7 +44,7 @@ async def test_no_exclusion_when_ids_empty():
 
     for empty in (None, []):
         db = _mock_db(vector_rows, bm25_rows)
-        await retrieve(db, QUERY_EMB_1024, CONV_ID, query_text="anything",
+        await retrieve(db, QUERY_EMB_2048, CONV_ID, query_text="anything",
                        exclude_message_ids=empty)
         for c in db.execute.call_args_list:
             assert "message_id NOT IN" not in _compiled(c.args[0])

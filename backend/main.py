@@ -16,6 +16,7 @@ from api.chat import router as chat_router
 from api.conversations import router as conversations_router
 from api.files import router as files_router
 from api.memory import router as memory_router
+from api.models_catalog import router as models_catalog_router
 from api.scheduled_prompts import router as scheduled_prompts_router
 from api.system import router as system_router
 from api.templates import router as templates_router
@@ -138,6 +139,7 @@ app.include_router(memory_router)
 app.include_router(system_router)
 app.include_router(tool_logs_router)
 app.include_router(admin_router)
+app.include_router(models_catalog_router)
 app.include_router(usage_router)
 app.include_router(templates_router)
 app.include_router(scheduled_prompts_router)

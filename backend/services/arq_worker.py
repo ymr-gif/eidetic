@@ -340,6 +340,21 @@ async def sync_external_source_job(ctx, *, source_id: str) -> None:
                 await db.commit()
 
 
+async def scan_model_catalog_job(ctx, *, trigger: str = "cron") -> None:
+    """ARQ wrapper around llm.catalog.scanner.run_scan — see
+    services/scheduler_worker.py:run_catalog_scan (cron `30 */6 * * *`, id
+    `__catalog_scan__`) and api/admin/models.py POST /admin/models/rescan
+    (trigger='manual') for the two callers."""
+    from llm.catalog.scanner import run_scan
+
+    try:
+        result = await run_scan(trigger=trigger)
+        logger.info("[arq] catalog_scan done trigger=%s result=%s", trigger, result)
+    except Exception:
+        logger.exception("[arq] catalog_scan failed trigger=%s", trigger)
+        ARQ_JOB_FAILED.labels(job_type="scan_model_catalog").inc()
+
+
 async def startup(ctx):
     llm_client.client = httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
 
@@ -351,7 +366,7 @@ async def shutdown(ctx):
 
 
 class WorkerSettings:
-    functions = [process_file_job, generate_insight_job, re_embed_batch_job, compact_memory_job, extract_preferences_job, update_behavior_profile_job, process_webhook_job, sync_external_source_job, send_insight_notification_job, send_scheduled_completion_job]
+    functions = [process_file_job, generate_insight_job, re_embed_batch_job, compact_memory_job, extract_preferences_job, update_behavior_profile_job, process_webhook_job, sync_external_source_job, send_insight_notification_job, send_scheduled_completion_job, scan_model_catalog_job]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(REDIS_URL)

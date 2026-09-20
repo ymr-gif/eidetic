@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import MODELS
 from llm.nim import call
+from llm.model_extras import apply_request_extras
 from models import MemoryConflict, UserMemory
 
 logger = logging.getLogger("summarizer")
@@ -35,6 +36,7 @@ async def detect_conflicts(content: str) -> list[dict]:
                 {"role": "user",   "content": prompt},
             ],
             request_id="conflict-detect",
+            model_params=apply_request_extras(_MODEL, None),
         )
         if not resp.get("ok"):
             continue

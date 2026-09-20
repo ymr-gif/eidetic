@@ -24,7 +24,7 @@ CHUNK_C_ID = uuid.uuid4()
 CHUNK_D_ID = uuid.uuid4()
 CHUNK_E_ID = uuid.uuid4()
 
-QUERY_EMB_1024 = [0.01 * (i % 10) for i in range(1024)]
+QUERY_EMB_2048 = [0.01 * (i % 10) for i in range(2048)]
 
 
 class MockRows:
@@ -62,7 +62,7 @@ def _make_bm25_row(chunk_id, source_id, content, rank):
 TEST_CASES = [
     {
         "name": "exact_match",
-        "query_emb": QUERY_EMB_1024,
+        "query_emb": QUERY_EMB_2048,
         "query_text": "authentication flow",
         "vector_rows": [
             _make_vector_row(CHUNK_A_ID, CONV_ID, "user authentication via JWT tokens", 0.92),
@@ -79,7 +79,7 @@ TEST_CASES = [
     },
     {
         "name": "fuzzy_bm25_boost",
-        "query_emb": QUERY_EMB_1024,
+        "query_emb": QUERY_EMB_2048,
         "query_text": "how do I reset my password",
         "vector_rows": [
             _make_vector_row(CHUNK_A_ID, CONV_ID, "general security guidelines", 0.60),
@@ -95,7 +95,7 @@ TEST_CASES = [
     },
     {
         "name": "multi_source",
-        "query_emb": QUERY_EMB_1024,
+        "query_emb": QUERY_EMB_2048,
         "query_text": "file processing pipeline",
         "vector_rows": [
             _make_vector_row(CHUNK_A_ID, FILE_ID_A, "PDF extraction and parsing", 0.88),
@@ -112,7 +112,7 @@ TEST_CASES = [
     },
     {
         "name": "vector_only_fallback",
-        "query_emb": QUERY_EMB_1024,
+        "query_emb": QUERY_EMB_2048,
         "query_text": "",
         "vector_rows": [
             _make_vector_row(CHUNK_D_ID, CONV_ID, "vector only result alpha", 0.95),
@@ -126,7 +126,7 @@ TEST_CASES = [
     },
     {
         "name": "single_source",
-        "query_emb": QUERY_EMB_1024,
+        "query_emb": QUERY_EMB_2048,
         "query_text": "docker compose setup",
         "vector_rows": [
             _make_vector_row(CHUNK_A_ID, CONV_ID, "docker compose file structure", 0.91),
@@ -144,7 +144,7 @@ TEST_CASES = [
 FILE_TEST_CASES = [
     {
         "name": "file_exact_match",
-        "query_emb": QUERY_EMB_1024,
+        "query_emb": QUERY_EMB_2048,
         "query_text": "PDF parsing",
         "file_ids": [FILE_ID_A, FILE_ID_B, FILE_ID_C],
         "vector_rows": [
@@ -160,7 +160,7 @@ FILE_TEST_CASES = [
     },
     {
         "name": "file_empty_no_file_ids",
-        "query_emb": QUERY_EMB_1024,
+        "query_emb": QUERY_EMB_2048,
         "query_text": "anything",
         "file_ids": [],
         "vector_rows": [],

@@ -12,3 +12,7 @@ class ChatRequest(BaseModel):
     image_b64:       str | None   = Field(None, max_length=2_097_152)
     image_mime_type: str | None   = None
     file_ids:        list[str]    = Field(default_factory=list)
+    # Phase 3 (live model catalog): explicit model picks for compare mode
+    # (max 4, each strict-resolved in api/chat/stream.py — 422 model_unavailable
+    # on a bad id). None (default) keeps the original 3-role comparison.
+    compare_models:  list[str] | None = None

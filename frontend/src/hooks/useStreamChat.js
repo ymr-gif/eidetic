@@ -1,12 +1,15 @@
-import { MODEL_KEYS } from '../lib/chatConstants.js'
+import { COMPARE_MODELS } from '../lib/chatConstants.js'
 
-export default function useStreamChat({ token, conv, modelParams, mem, insights, onLogout, onCalendarWrite, onTtft, onLinkState }) {
+export default function useStreamChat({ token, conv, modelParams, mem, insights, onLogout, onCalendarWrite, onTtft, onLinkState, onModelNotice }) {
   const authHeaders = { 'Authorization': `Bearer ${token}` }
 
   function buildBody(text) {
     const body = { message: text, conversation_id: conv.activeConvId }
     if (modelParams.selectedModel !== 'auto') body.model_override = modelParams.selectedModel
-    if (modelParams.compareMode) body.compare = true
+    if (modelParams.compareMode) {
+      body.compare = true
+      if (modelParams.compareModels && modelParams.compareModels.length) body.compare_models = modelParams.compareModels
+    }
     if (modelParams.tempEnabled)   body.temperature = modelParams.temperature
     if (modelParams.tokensEnabled) body.max_tokens  = modelParams.maxTokens
     if (modelParams.topPEnabled)   body.top_p       = modelParams.topP
@@ -21,9 +24,13 @@ export default function useStreamChat({ token, conv, modelParams, mem, insights,
     conv.setInput(''); conv.setLoading(true); conv.setProactive(null); conv.setPendingWriteFact(null); if (onCalendarWrite) onCalendarWrite(null); conv.setLastSession('')
 
     if (isCompare) {
+      // Best-effort initial order so the layout isn't empty before `compare_start` lands (it's
+      // the very first SSE event, so this is usually overwritten within one network round trip).
+      const initialOrder = (modelParams.compareModels && modelParams.compareModels.length) ? modelParams.compareModels : COMPARE_MODELS
       conv.setMessages(prev => [...prev,
         { id: userId, role: 'user', text, streaming: false },
-        { id: aiId, role: 'compare', responses: Object.fromEntries(Object.values(MODEL_KEYS).map(m => [m, { text: '', streaming: true }])) },
+        { id: aiId, role: 'compare', compareOrder: initialOrder, compareLabels: {},
+          responses: Object.fromEntries(initialOrder.map(m => [m, { text: '', streaming: true }])) },
       ])
     } else {
       conv.setMessages(prev => [...prev,
@@ -41,7 +48,14 @@ export default function useStreamChat({ token, conv, modelParams, mem, insights,
       })
       if (res.status === 401) { onLogout(); return }
       if (!res.ok) {
-        conv.setMessages(prev => prev.map(m => m.id === aiId ? { ...m, role: 'err', text: 'Request failed', streaming: false } : m))
+        // 422 here is a pre-stream rejection (e.g. compare_models: too_many_compare_models /
+        // model_unavailable on the first bad id) — surface the backend's detail instead of a flat message.
+        const data = await res.json().catch(() => ({}))
+        const detail = typeof data.detail === 'string' ? data.detail : data.detail?.error
+        const text = detail === 'model_unavailable' ? 'That model is no longer available.'
+          : detail === 'too_many_compare_models' ? 'Too many models selected to compare (max 4).'
+          : detail || `Request failed (${res.status})`
+        conv.setMessages(prev => prev.map(m => m.id === aiId ? { ...m, role: 'err', text, streaming: false } : m))
         if (onLinkState) onLinkState(true)
         return
       }
@@ -56,6 +70,14 @@ export default function useStreamChat({ token, conv, modelParams, mem, insights,
           const raw = line.slice(6).trim(); if (!raw) continue
           try {
             const event = JSON.parse(raw)
+            if (event.type === 'compare_start') {
+              const order = (event.models || []).map(mm => mm.id)
+              const labels = Object.fromEntries((event.models || []).map(mm => [mm.id, mm.label]))
+              conv.setMessages(prev => prev.map(m => m.id === aiId
+                ? { ...m, compareOrder: order, compareLabels: labels,
+                    responses: Object.fromEntries(order.map(id => [id, { text: '', streaming: true }])) }
+                : m))
+            }
             if (event.type === 'token' && !ttftReported) {
               ttftReported = true
               if (onTtft) onTtft(performance.now() - t0)
@@ -89,6 +111,11 @@ export default function useStreamChat({ token, conv, modelParams, mem, insights,
                 conv.setMessages(prev => prev.map(m => m.id === aiId ? { ...m, model: event.model, streaming: false, promptTokens: event.prompt_tokens, completionTokens: event.completion_tokens, totalTokens: event.total_tokens, costUsd: event.cost_usd, provenance: event.provenance || [], queryType: event.query_type || '', srcCount: event.src_count ?? 0, webSearched: event.web_searched ?? false, urlFetched: event.url_fetched ?? false, grounding: event.grounding || null, intent: event.intent || '', activity: event.activity || [] } : m))
                 mem.setMemTick(t => t + 1)
                 setTimeout(() => { if (mem.memTab === 'graph') insights.loadGraphStats() }, 2000)
+                // The locked-model-unavailable notice rides the activity trace (no dedicated SSE
+                // event) and stays hidden behind the grounding gauge's click-to-expand timeline —
+                // surface it directly too, since it can fire on turns with no retrieval at all.
+                const modelNotice = (event.activity || []).find(a => a.stage === 'model' && a.level === 'error')
+                if (modelNotice && onModelNotice) onModelNotice(modelNotice.detail)
               }
               if (event.last_session) conv.setLastSession(event.last_session)
               const cid = event.conversation_id

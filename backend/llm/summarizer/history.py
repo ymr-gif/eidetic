@@ -8,6 +8,7 @@ from config import MODELS
 from core.db import AsyncSessionLocal
 from models import Conversation, Message
 from llm.nim import call
+from llm.model_extras import apply_request_extras
 from .prompts import _COMPRESS_SYSTEM
 
 logger = logging.getLogger("summarizer")
@@ -44,6 +45,7 @@ async def _compress_history(db: AsyncSession, conversation_id: uuid.UUID) -> Non
             {"role": "user",   "content": text},
         ],
         request_id = f"compress-{conversation_id}",
+        model_params = apply_request_extras(_MODEL, None),
     )
 
     if not result.get("ok"):

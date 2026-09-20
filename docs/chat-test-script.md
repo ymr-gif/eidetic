@@ -94,8 +94,7 @@ I'm pretty sure the memory sheet injects the top 30 facts sorted by salience.
 Graph extraction uses the small llama model — the 8B one — to keep it fast, right?
 ```
 
-> **Expect AI to correct:** It uses the **70B reasoning model**. The 8B was the original
-> choice but was replaced because it produced unreliable structured JSON output.
+> **Expect AI to correct:** It uses the **reasoning model** (nvidia/nemotron-3-super-120b-a12b). Smaller models were replaced because they produced unreliable structured JSON output.
 
 ---
 
@@ -159,7 +158,7 @@ Summarize everything you know about me, this project, and the reliability settin
 
 > **Expect:** Full recall across all seeded facts plus corrections and new writes from this session:
 > identity, stack, routing, fallback, circuit breaker (5/90s), retries (3/4 attempts), memory
-> injection order, entity cap (500/70B model), salience top-20, BUGS.md habit, docker auto-fix pref.
+> injection order, entity cap (500; extraction runs on the reasoning model), salience top-20, BUGS.md habit, docker auto-fix pref.
 >
 > Behind the scenes: history compression likely triggers here (all_count > 10 or >4000 tokens).
 > `POST /memory` update if token threshold crossed. Full graph context load.

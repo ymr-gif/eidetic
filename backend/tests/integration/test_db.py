@@ -54,14 +54,15 @@ def test_core_tables_exist(db_dsn):
         assert expected in tables, f"missing table: {expected}"
 
 
-def test_message_embedding_dim_is_1024(db_dsn):
-    """The embedding column must stay 1024-d (changing it forces a full re-embed)."""
+def test_message_embedding_dim_is_2048(db_dsn):
+    """The embedding column must stay halfvec(2048) (nemotron-3-embed-1b, migration 049;
+    changing it again forces a full re-embed)."""
     import asyncpg
 
     async def _go():
         conn = await asyncpg.connect(db_dsn)
         try:
-            # vector typmod encodes the dimension; format_type renders it as vector(N)
+            # halfvec typmod encodes the dimension; format_type renders it as halfvec(N)
             return await conn.fetchval(
                 """
                 SELECT format_type(a.atttypid, a.atttypmod)
@@ -76,4 +77,4 @@ def test_message_embedding_dim_is_1024(db_dsn):
     rendered = _run(_go())
     if rendered is None:
         pytest.skip("message_embeddings.embedding column not found on target")
-    assert "1024" in rendered, f"embedding dim changed: {rendered}"
+    assert "halfvec" in rendered and "2048" in rendered, f"embedding dim/type changed: {rendered}"

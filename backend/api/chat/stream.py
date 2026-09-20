@@ -12,6 +12,7 @@ from auth import get_current_user
 from cache import get_cached_response
 from core.db import get_db
 from llm import service
+from llm.catalog import cache as catalog_cache
 from models import Conversation, ConversationFile, Message, User
 from observability import events, metrics, observability
 from observability.prom_metrics import (
@@ -28,8 +29,9 @@ from llm.summarizer.project import update_project_summary
 
 from .helpers import (
     _build_stream_context, _check_cost_cap, _extract_model_params,
-    _resolve_conversation, _resolve_model,
+    _resolve_conversation,
 )
+from .model_resolve import lock_unavailable_status_event, resolve_compare_models, resolve_effective_model
 from .background import (
     _auto_title, _calculate_tokens_and_cost, _embed_exchange, _estimate_tokens, _generate_proactive,
 )
@@ -112,10 +114,17 @@ async def chat_stream(
     logger.info("[chat/stream] rid=%s user=%s", rid, current_user.username)
 
     await _check_cost_cap(current_user, db)
+    # Phase 3 (live model catalog): refresh the in-process snapshot (15s-guarded,
+    # no-op most calls) before resolving model_override/locked_model against it.
+    await catalog_cache.ensure_fresh()
 
     conv, rotation_info = await _resolve_conversation(req, current_user, db)
-    model_params    = _extract_model_params(req)
-    effective_model = _resolve_model(req.model_override) or _resolve_model(conv.locked_model)
+    model_params = _extract_model_params(req)
+    # A locked model an admin has since disabled/delisted (Phase 3) resolves to
+    # None here even though the DB value is untouched — fall back to Auto for
+    # THIS turn and surface it via a status event below, rather than sending a
+    # request to NIM for a model that will just fail.
+    effective_model, lock_unavailable = resolve_effective_model(req.model_override, conv.locked_model)
     if effective_model:
         await check_model_rate(effective_model, current_user.username)
 
@@ -186,6 +195,9 @@ async def chat_stream(
     ctx = await _build_stream_context(req, conv, current_user, db, rid)
     last_session = ctx.get("last_session", "")
 
+    if lock_unavailable:
+        ctx.setdefault("activity", []).append(lock_unavailable_status_event(conv.locked_model))
+
     system_prompt = conv.system_prompt or None
 
     if req.compare:
@@ -202,9 +214,15 @@ async def chat_stream(
         )
         t_cmp = metrics.record_request_start()
 
+        # Phase 3: an explicit compare_models selection (max 4, each strict-
+        # resolved — 422 model_unavailable on a bad pick) overrides the default
+        # 3-role comparison. Validated here (not in the pydantic schema) so a
+        # bad id names itself in the error rather than a generic length/type msg.
+        compare_ids = resolve_compare_models(req.compare_models)
+
         async def compare_generator():
             try:
-                async for event in service.compare_streams(req.message, common, model_params, rid):
+                async for event in service.compare_streams(req.message, common, model_params, rid, models=compare_ids):
                     if event.get("type") == "done":
                         event["conversation_id"] = str(conv.id)
                     yield f"data: {_json.dumps(event)}\n\n"

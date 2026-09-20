@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from api.chat.usage_ledger import LEDGER_TITLE, record_stateless_usage, tokens_and_cost
-from config import MODEL_PRICING, MODELS
+from config import DEFAULT_MODEL_PRICE_IN, DEFAULT_MODEL_PRICE_OUT, MODEL_PRICING, MODELS
 
 
 LLAMA = MODELS["llama"]
@@ -30,9 +30,15 @@ def test_tokens_and_cost_estimates_without_usage():
     assert cost > 0
 
 
-def test_tokens_and_cost_unknown_model_zero_cost():
+def test_tokens_and_cost_unknown_model_uses_default_rate_not_zero():
+    # HANDOFF Phase 3 (live model catalog): tokens_and_cost() now goes through
+    # llm.catalog.pricing.get_pricing(), which bills an unpriced/unknown model
+    # at DEFAULT_MODEL_PRICE_IN/OUT rather than $0 — the old $0 behavior let a
+    # demo account's per-account/global cost caps never bind on a new model.
     _, _, _, cost, _ = tokens_and_cost({"prompt_tokens": 10, "completion_tokens": 10}, "", "", "bogus/model")
-    assert cost == 0.0
+    expected = 10 / 1e6 * DEFAULT_MODEL_PRICE_IN + 10 / 1e6 * DEFAULT_MODEL_PRICE_OUT
+    assert cost == pytest.approx(expected)
+    assert cost > 0.0
 
 
 @pytest.mark.asyncio

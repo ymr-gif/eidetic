@@ -74,6 +74,7 @@ async def extract_and_store(user_id: int, message: str, response: str) -> None:
         return
 
     from llm.nim import call
+    from llm.model_extras import apply_request_extras
 
     prompt = _EXTRACT_PROMPT.format(message=message[:500], response=response[:800])
 
@@ -82,6 +83,7 @@ async def extract_and_store(user_id: int, message: str, response: str) -> None:
             model=MODELS["reasoning"],
             messages=[{"role": "user", "content": prompt}],
             request_id=f"graph-{user_id}",
+            model_params=apply_request_extras(MODELS["reasoning"], None),
         )
         raw = (result.get("content") or "").strip()
 

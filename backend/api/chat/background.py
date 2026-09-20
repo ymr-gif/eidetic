@@ -2,8 +2,9 @@ import asyncio
 import logging
 import uuid
 
-from config import MODEL_PRICING, MODELS
+from config import MODELS
 from llm import retriever
+from llm.catalog.pricing import get_pricing
 from llm.embeddings import embed as embed_text
 from models import Conversation
 
@@ -46,6 +47,7 @@ async def _auto_title(conv_id: uuid.UUID, user_msg: str, ai_msg: str) -> None:
     from sqlalchemy import update
     from core.db import AsyncSessionLocal
     from llm.nim import call
+    from llm.model_extras import apply_request_extras
     prompt = (
         f"Summarize this exchange in 6 words or fewer:\n"
         f"User: {user_msg[:200]}\nAI: {ai_msg[:200]}"
@@ -55,6 +57,7 @@ async def _auto_title(conv_id: uuid.UUID, user_msg: str, ai_msg: str) -> None:
             model      = MODELS["llama"],
             messages   = [{"role": "user", "content": prompt}],
             request_id = f"title-{conv_id}",
+            model_params = apply_request_extras(MODELS["llama"], None),
         )
         title = (result.get("content") or "").strip().strip('"').strip("'")
         if title and len(title) <= 80:
@@ -79,7 +82,7 @@ def _calculate_tokens_and_cost(
     full_response: str,
     model_used:    str,
 ) -> tuple[int, int, int, float]:
-    pricing = MODEL_PRICING.get(model_used, {})
+    pricing = get_pricing(model_used)
     nim_usage = event.get("usage")
     if nim_usage and isinstance(nim_usage, dict):
         prompt_tokens     = nim_usage.get("prompt_tokens", 0)

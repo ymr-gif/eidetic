@@ -70,7 +70,7 @@ export default function Chat({ token, onLogout }) {
   const authHeaders = { 'Authorization': `Bearer ${token}` }
 
   const { send } = useStreamChat({
-    token, conv, modelParams, mem, insights, onLogout,
+    token, conv, modelParams, mem, insights, catalog, onLogout,
     onCalendarWrite: setPendingCalendarWrite,
     onTtft: setLastTtft, onLinkState: setLinkFault,
     onModelNotice: showToast,
@@ -237,6 +237,7 @@ export default function Chat({ token, onLogout }) {
                 toastMsg={toastMsg}
                 onOpenMemory={() => openDock('mind', 'memory')}
                 labelFor={catalog.labelFor}
+                roleKeyForId={catalog.roleKeyForId}
               />
 
               <ModelToolbar

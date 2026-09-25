@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import s from '../../../lib/chatStyles.js'
-import { MODEL_KEYS } from '../../../lib/chatConstants.js'
 import { usePanelProps } from '../PanelPropsContext.js'
 
 export default function TelemetryStrip({ lastTtft, linkFault, dockTab, setDockTab, onOpenPalette, onLogout, userRole, narrow, onToggleRail }) {
@@ -29,7 +28,7 @@ export default function TelemetryStrip({ lastTtft, linkFault, dockTab, setDockTa
   const openModels = breakers ? Object.entries(breakers.models || {}).filter(([, o]) => o).map(([m]) => m) : []
 
   const lockedModel = conv.convLockModel
-  const roleId = MODEL_KEYS[modelParams.selectedModel]
+  const roleId = catalog.roleModels?.[modelParams.selectedModel]?.id
   const busModel = lockedModel
     ? catalog.labelFor(lockedModel)
     : modelParams.selectedModel === 'auto'

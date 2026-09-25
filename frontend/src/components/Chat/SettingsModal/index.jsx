@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import s, { FG4, FG3, AMBER, ALERT, MONO } from '../../../lib/chatStyles.js'
-import { MODEL_KEYS } from '../../../lib/chatConstants.js'
+import { ROLE_SUBLABELS } from '../../../lib/chatConstants.js'
 import { usePanelProps } from '../PanelPropsContext.js'
 
 const NOTIF_LABELS = {
@@ -45,7 +45,12 @@ export default function SettingsModal() {
           )}
         </div>
         <div style={{ ...s.modelPills, marginTop:'0.4rem', flexWrap:'wrap' }}>
-          {[['', 'Auto (route)'], ...ROLE_KEYS.map(k => [k, catalog?.labelFor(MODEL_KEYS[k]) || k])].map(([key, label]) => (
+          {[
+            ['', 'Auto (route)'],
+            // Same shared-id disambiguation as ModelToolbar: append the role tag when two roles
+            // resolve to the same live id, otherwise leave the label as-is.
+            ...ROLE_KEYS.map(k => [k, (catalog?.roleModels?.[k]?.label || k) + (catalog?.roleCollides?.[k] ? ` · ${ROLE_SUBLABELS[k]}` : '')]),
+          ].map(([key, label]) => (
             <button key={key} onClick={() => setEditLockModel(key)}
               style={{ ...s.pill, ...(editLockModel === key ? s.pillActive : {}) }}>
               {label}
@@ -77,7 +82,7 @@ export default function SettingsModal() {
           )}
         </div>
 
-        {editLockModel && <div style={{ fontSize:'14px', color:FG4, marginTop:'0.4rem' }}>All messages in this conversation will use {catalog?.labelFor(isRolePick ? MODEL_KEYS[editLockModel] : editLockModel) || editLockModel}.</div>}
+        {editLockModel && <div style={{ fontSize:'14px', color:FG4, marginTop:'0.4rem' }}>All messages in this conversation will use {(isRolePick ? catalog?.roleModels?.[editLockModel]?.label : catalog?.labelFor(editLockModel)) || editLockModel}.</div>}
         {settingsError && <div style={{ fontSize:'13px', color:ALERT, marginTop:'0.5rem' }}>{settingsError}</div>}
 
         <div style={s.notifSection}>

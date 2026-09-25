@@ -2,7 +2,14 @@ import { useState } from 'react'
 import s, { NOMINAL } from '../../../lib/chatStyles.js'
 import ParamSlider from '../../ParamSlider.jsx'
 import ComparePicker from './ComparePicker.jsx'
-import { MODEL_KEYS } from '../../../lib/chatConstants.js'
+import { ROLE_SUBLABELS } from '../../../lib/chatConstants.js'
+
+const ROLE_KEYS = ['llama', 'coder', 'reasoning']
+// Cap on the model-label portion of a role pill when it needs a disambiguating role suffix
+// (two roles sharing one id) — keeps a single pill from ballooning if a future catalog label is
+// long, while the " · fast"/" · code"/" · reasoning" suffix that actually disambiguates always
+// stays fully visible.
+const PILL_LABEL_MAX = '150px'
 
 export default function ModelToolbar({
   selectedModel, setSelectedModel,
@@ -19,19 +26,34 @@ export default function ModelToolbar({
   catalog,
 }) {
   const [comparePickerOpen, setComparePickerOpen] = useState(false)
-  const catalogSelected = selectedModel !== 'auto' && !['llama', 'coder', 'reasoning'].includes(selectedModel)
+  const catalogSelected = selectedModel !== 'auto' && !ROLE_KEYS.includes(selectedModel)
 
   return (
     <div>
       <div style={s.toolbarWrap}>
         <div style={s.toolbar}>
           <div style={s.modelPills}>
-            {[['auto', 'Auto'], ['llama', catalog?.labelFor(MODEL_KEYS.llama)], ['coder', catalog?.labelFor(MODEL_KEYS.coder)], ['reasoning', catalog?.labelFor(MODEL_KEYS.reasoning)]].map(([key, label]) => (
-              <button key={key} onClick={() => setSelectedModel(key)}
-                style={{ ...s.pill, ...(selectedModel === key ? s.pillActive : {}) }}>
-                {label}
-              </button>
-            ))}
+            <button onClick={() => setSelectedModel('auto')}
+              style={{ ...s.pill, ...(selectedModel === 'auto' ? s.pillActive : {}) }}>
+              Auto
+            </button>
+            {ROLE_KEYS.map(k => {
+              const label = catalog?.roleModels?.[k]?.label || k
+              // Two roles can share one live id (llama+coder both on nano-omni today) — when
+              // that happens their pills would otherwise show identical text with no way to
+              // tell them apart except highlight position. Append the role's short tag to
+              // disambiguate; leave the label alone when every role has a distinct id.
+              const suffix = catalog?.roleCollides?.[k] ? ROLE_SUBLABELS[k] : null
+              return (
+                <button key={k} onClick={() => setSelectedModel(k)}
+                  style={{ ...s.pill, ...(selectedModel === k ? s.pillActive : {}) }}>
+                  <span style={suffix
+                    ? { display:'inline-block', maxWidth:PILL_LABEL_MAX, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', verticalAlign:'bottom' }
+                    : undefined}>{label}</span>
+                  {suffix && <span> · {suffix}</span>}
+                </button>
+              )
+            })}
             {catalogSelected && (
               <span style={{ ...s.pill, ...s.pillActive, display:'inline-flex', alignItems:'center', gap:'0.35rem' }}>
                 {catalog?.labelFor(selectedModel) || selectedModel}

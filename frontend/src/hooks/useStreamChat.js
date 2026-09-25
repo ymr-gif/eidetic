@@ -1,6 +1,6 @@
 import { COMPARE_MODELS } from '../lib/chatConstants.js'
 
-export default function useStreamChat({ token, conv, modelParams, mem, insights, onLogout, onCalendarWrite, onTtft, onLinkState, onModelNotice }) {
+export default function useStreamChat({ token, conv, modelParams, mem, insights, catalog, onLogout, onCalendarWrite, onTtft, onLinkState, onModelNotice }) {
   const authHeaders = { 'Authorization': `Bearer ${token}` }
 
   function buildBody(text) {
@@ -26,7 +26,10 @@ export default function useStreamChat({ token, conv, modelParams, mem, insights,
     if (isCompare) {
       // Best-effort initial order so the layout isn't empty before `compare_start` lands (it's
       // the very first SSE event, so this is usually overwritten within one network round trip).
-      const initialOrder = (modelParams.compareModels && modelParams.compareModels.length) ? modelParams.compareModels : COMPARE_MODELS
+      // Prefer the live catalog's de-duplicated default (falls back to the static list before
+      // the catalog fetch resolves).
+      const liveDefault = (catalog?.defaultCompareIds && catalog.defaultCompareIds.length) ? catalog.defaultCompareIds : COMPARE_MODELS
+      const initialOrder = (modelParams.compareModels && modelParams.compareModels.length) ? modelParams.compareModels : liveDefault
       conv.setMessages(prev => [...prev,
         { id: userId, role: 'user', text, streaming: false },
         { id: aiId, role: 'compare', compareOrder: initialOrder, compareLabels: {},

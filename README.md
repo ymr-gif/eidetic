@@ -235,10 +235,15 @@ DELETE /auth/me/webhook-token   — revoke token
 
 ## Models
 
+NVIDIA retires and adds models on its hosted endpoint within days, so treat the table below as a
+snapshot (2026-09-25), not a guarantee. The live answer is the model catalog: a scheduled job probes
+every listed chat model every six hours and records what actually responds, and admins enable which of
+those users can pick (`ADMIN -> MODELS` in the UI, or `GET /api/admin/models`).
+
 | Role | Model | Env var |
 |---|---|---|
-| General | `openai/gpt-oss-20b` | `MODEL_LLAMA` |
-| Coder | `deepseek-ai/deepseek-v4-flash-0731` | `MODEL_CODER` |
+| General | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | `MODEL_LLAMA` |
+| Coder | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | `MODEL_CODER` |
 | Reasoning | `nvidia/nemotron-3-super-120b-a12b` | `MODEL_REASONING` |
 | Embedding | `nvidia/nemotron-3-embed-1b` (2048d) | `MODEL_EMBEDDING` |
 
@@ -406,8 +411,8 @@ See `.env.example` for all variables. Commonly changed:
 | `REQUIRE_INVITE` | `false` | Gate registration behind invite tokens |
 | `REQUEST_TIMEOUT` | `30` | NIM request timeout (seconds) |
 | `MAX_CONCURRENT_REQUESTS` | `10` | Max parallel NIM requests (cap 50) |
-| `MODEL_LLAMA` | `openai/gpt-oss-20b` | Override general model |
-| `MODEL_CODER` | `deepseek-ai/deepseek-v4-flash-0731` | Override coder model |
+| `MODEL_LLAMA` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | Override general model |
+| `MODEL_CODER` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | Override coder model |
 | `MODEL_REASONING` | `nvidia/nemotron-3-super-120b-a12b` | Override reasoning model |
 | `MODEL_EMBEDDING` | `nvidia/nemotron-3-embed-1b` | Changing this triggers a full re-embed (now 2048d) |
 | `BACKUP_SCHEDULE` | `0 2 * * *` | Cron for automated DB backup |

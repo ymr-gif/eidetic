@@ -9,7 +9,10 @@ const MAX_COMPARE = 4
 // Cancel closes without changing anything.
 export default function ComparePicker({ catalog, compareModels, setCompareModels, setCompareMode, onClose }) {
   const [filter, setFilter] = useState('')
-  const [picked, setPicked] = useState(() => (compareModels && compareModels.length) ? compareModels : COMPARE_MODELS)
+  const [picked, setPicked] = useState(() => {
+    if (compareModels && compareModels.length) return compareModels
+    return (catalog?.defaultCompareIds && catalog.defaultCompareIds.length) ? catalog.defaultCompareIds : COMPARE_MODELS
+  })
 
   // Escape closes (window-level, same pattern as CommandPalette's own Escape listener).
   useEffect(() => {
@@ -19,13 +22,15 @@ export default function ComparePicker({ catalog, compareModels, setCompareModels
   }, [onClose])
 
   const options = useMemo(() => {
-    const all = [...(catalog?.roleModels || []), ...(catalog?.catalogModels || [])]
+    // roleModelList is already de-duplicated by id — llama and coder currently share one live
+    // id, and this must show ONE row for it, not two, or the same checkbox would appear twice.
+    const all = [...(catalog?.roleModelList || []), ...(catalog?.catalogModels || [])]
     const needle = filter.trim().toLowerCase()
     const list = needle
       ? all.filter(m => m.id.toLowerCase().includes(needle) || (m.label || '').toLowerCase().includes(needle))
       : all
     return list.slice(0, 24)
-  }, [filter, catalog?.roleModels, catalog?.catalogModels])
+  }, [filter, catalog?.roleModelList, catalog?.catalogModels])
 
   function toggle(id) {
     setPicked(prev => {
@@ -61,7 +66,9 @@ export default function ComparePicker({ catalog, compareModels, setCompareModels
                 style={{ display:'flex', alignItems:'center', gap:'0.5rem', padding:'0.35rem 0.5rem', borderRadius:'3px', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, fontSize:'12.5px', color: checked ? AMBER : FG3 }}>
                 <span style={{ width:'12px', height:'12px', flexShrink:0, borderRadius:'2px', border:`1px solid ${checked ? AMBER : LINE2}`, background: checked ? AMBER : 'transparent' }} />
                 <span style={{ flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.label || m.id}</span>
-                {m.role && <span style={{ fontFamily:MONO, fontSize:'8px', color:FG4, textTransform:'uppercase' }}>{m.role}</span>}
+                {/* roleModelList rows are de-duplicated by id, so a shared id (llama+coder) is
+                    ONE row — tag it with every role that owns the id, not just the first. */}
+                {m.roles?.length > 0 && <span style={{ fontFamily:MONO, fontSize:'8px', color:FG4, textTransform:'uppercase' }}>{m.roles.join('/')}</span>}
               </div>
             )
           })}

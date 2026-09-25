@@ -56,7 +56,8 @@ Watch the logs for `embed_fail` creeping in — if it dominates, the embedder re
 **Long runs & token budget (important):** two separate meters.
 - *NIM tokens* (the traffic): **lean mode is ON by default** — each send caps the reply to 1 token, so
   the tool loop (the real token sink) never starts and the cache is bypassed (latch always logs). Add
-  `--lean-model openai/gpt-oss-20b` to pin the cheapest model and dodge fallback churn. A
+  `--lean-model nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` to pin the cheapest model and dodge
+  fallback churn (check the admin catalog first — model ids churn within days). A
   multi-hour 2-worker run is single-digit dollars. (If NIM degrades, sends just get *slow* — tokens
   stay capped, you simply collect less.)
 - *Claude tokens* (your agent tester): keep it **launch-and-poll**. Let `fleet.py`/`run_collection.py`

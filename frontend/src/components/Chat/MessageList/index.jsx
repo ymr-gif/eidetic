@@ -2,7 +2,7 @@ import { Fragment } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import s, { NOMINAL, AMBER, ALERT, INFOBLUE, FG4, FG5, LINE, MONO, VOID } from '../../../lib/chatStyles.js'
-import { MODEL_LABELS, MODEL_SUBLABELS, COMPARE_MODELS } from '../../../lib/chatConstants.js'
+import { MODEL_LABELS, ROLE_SUBLABELS, COMPARE_MODELS } from '../../../lib/chatConstants.js'
 import ProvenanceTrace from '../ProvenanceTrace'
 
 const confirmBtn = (color) => ({
@@ -27,8 +27,13 @@ export default function MessageList({
   toastMsg,
   onOpenMemory,
   labelFor,
+  roleKeyForId,
 }) {
   const modelLabel = id => (labelFor ? labelFor(id) : (MODEL_LABELS[id] || id))
+  // ROLE_SUBLABELS is keyed by role ('llama'/'coder'/'reasoning'), not by model id — two roles
+  // can share one live id, so an id-keyed lookup can't tell which role actually handled a given
+  // reply. Resolve the id to its role first (dynamic, via the catalog) and look up from there.
+  const subLabel = id => ROLE_SUBLABELS[roleKeyForId ? roleKeyForId(id) : null] || ''
   const firstAiIdx = messages.findIndex(m => m.role === 'ai')
   return (
     <div style={s.feed}>
@@ -49,7 +54,7 @@ export default function MessageList({
                         ? <p style={s.text}>{resp.text || <span style={{ color:FG5 }}>…</span>}{resp.streaming && <span style={s.cursor} />}</p>
                         : <div className="md-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{resp.text}</ReactMarkdown></div>
                       }
-                      <span style={s.cardModel}>{MODEL_SUBLABELS[model] || ''}</span>
+                      <span style={s.cardModel}>{subLabel(model)}</span>
                     </div>
                   )
                 })}
@@ -84,7 +89,7 @@ export default function MessageList({
                 </div>
               </div>
             )}
-            {m.model && !m.streaming && <span style={s.tag}>{modelLabel(m.model)} · {MODEL_SUBLABELS[m.model] || ''}</span>}
+            {m.model && !m.streaming && <span style={s.tag}>{modelLabel(m.model)} · {subLabel(m.model)}</span>}
             {m.totalTokens && !m.streaming && <span style={s.tokMeta}>{m.totalTokens.toLocaleString()} tok · ${(m.costUsd || 0).toFixed(5)}
               {m.queryType && m.role === 'ai' ? ` · ${m.queryType}` : ''}
               {m.role === 'ai' && m.srcCount > 0 ? <span style={{ color: m.srcCount >= 3 ? NOMINAL : AMBER }}> · {m.srcCount} src</span> : null}

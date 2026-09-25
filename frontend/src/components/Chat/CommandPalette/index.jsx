@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import s, { AMBER, NOMINAL, INFOBLUE, TRACK, FG3, FG4 } from '../../../lib/chatStyles.js'
-import { MODEL_KEYS, roleKeyForModelId } from '../../../lib/chatConstants.js'
 import { usePanelProps } from '../PanelPropsContext.js'
 
 const SRC_COLORS = { files: AMBER, conversations: INFOBLUE, memory: NOMINAL, graph: TRACK, action: FG3 }
@@ -27,7 +26,8 @@ export default function CommandPalette({ open, onClose, openDock, onLogout, onTo
       const label = m.label || m.id
       // A role model's raw id resolves to the SAME pill as its role key — select the role key so
       // ModelToolbar highlights the existing role pill instead of adding a duplicate "extra" pill.
-      const acts = [{ id: `model-${m.id}`, label: `Model: ${label}`, run: () => modelParams.setSelectedModel(roleKeyForModelId(m.id) || m.id) }]
+      // catalog.roleKeyForId is deterministic when two roles share an id (llama wins over coder).
+      const acts = [{ id: `model-${m.id}`, label: `Model: ${label}`, run: () => modelParams.setSelectedModel(catalog?.roleKeyForId(m.id) || m.id) }]
       if (conv.activeConvId) {
         acts.push({
           id: `lock-${m.id}`,
@@ -50,9 +50,9 @@ export default function CommandPalette({ open, onClose, openDock, onLogout, onTo
       { id: 'ops', label: 'Open dock · Ops (usage / log / automations)', run: () => openDock('ops', 'usage') },
       { id: 'compare', label: `${modelParams.compareMode ? 'Disable' : 'Enable'} compare mode`, run: () => modelParams.setCompareMode(!modelParams.compareMode) },
       { id: 'auto', label: 'Model → Auto routing', run: () => modelParams.setSelectedModel('auto') },
-      { id: 'llama', label: `Model → ${catalog?.labelFor(MODEL_KEYS.llama)}`, run: () => modelParams.setSelectedModel('llama') },
-      { id: 'coder', label: `Model → ${catalog?.labelFor(MODEL_KEYS.coder)}`, run: () => modelParams.setSelectedModel('coder') },
-      { id: 'reasoning', label: `Model → ${catalog?.labelFor(MODEL_KEYS.reasoning)}`, run: () => modelParams.setSelectedModel('reasoning') },
+      { id: 'llama', label: `Model → ${catalog?.roleModels?.llama?.label}`, run: () => modelParams.setSelectedModel('llama') },
+      { id: 'coder', label: `Model → ${catalog?.roleModels?.coder?.label}`, run: () => modelParams.setSelectedModel('coder') },
+      { id: 'reasoning', label: `Model → ${catalog?.roleModels?.reasoning?.label}`, run: () => modelParams.setSelectedModel('reasoning') },
       { id: 'logout', label: 'Log out', run: onLogout },
     ]
     if (conv.activeConvId) {

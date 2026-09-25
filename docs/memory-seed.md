@@ -27,7 +27,7 @@ Please remember all of this.
 ```
 Here's the architecture I want you to retain:
 
-The gateway routes to three NIM models based on keywords: llama (openai/gpt-oss-20b) for general queries, coder (deepseek-ai/deepseek-v4-flash-0731) for code, reasoning (nvidia/nemotron-3-super-120b-a12b) for complex tasks. There's a fallback chain: chosen model → reasoning → coder → llama.
+The gateway routes to three NIM models based on keywords: llama (nvidia/nemotron-3-nano-omni-30b-a3b-reasoning) for general queries, coder (same model as of 2026-09-25) for code, reasoning (nvidia/nemotron-3-super-120b-a12b) for complex tasks. There's a fallback chain: chosen model → reasoning → coder → llama.
 
 There's a circuit breaker: 5-failure threshold, 90-second cooldown, Redis-persisted so state survives container restarts.
 

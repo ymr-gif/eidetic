@@ -7,6 +7,7 @@ from auth import get_current_user
 from core.db import get_db
 from llm import service
 from llm.catalog import cache as catalog_cache
+from llm.catalog import role_state
 from models import User
 from observability import events, metrics, observability
 from observability.prom_metrics import (
@@ -39,6 +40,11 @@ async def chat(
     # Phase 3 (live model catalog): refresh the in-process snapshot (15s-guarded,
     # no-op most calls) before resolving model_override against it.
     await catalog_cache.ensure_fresh()
+    # HANDOFF Phase A: same 15s-guarded refresh for role-override state, so
+    # _resolve_model's role lookup reflects any active auto-promotion. No-op
+    # when the feature is off (role_state.ensure_fresh() no-ops on LLM_BACKEND
+    # alone; the flag check lives in effective_role_model itself).
+    await role_state.ensure_fresh()
     effective_model = _resolve_model(req.model_override)
     if effective_model:
         await check_model_rate(effective_model, current_user.username)

@@ -17,6 +17,7 @@ import llm.client as llm_client
 import config
 from llm.circuit_breaker import record_failure, _THRESHOLD
 from llm.model_extras import apply_request_extras
+from llm.catalog.promotion import check_promotion_for_failed_model, effective_role_model
 from core.db import AsyncSessionLocal
 from core.redis_client import get_redis
 from observability.prom_metrics import CONTENT_TYPE_LATEST, export_metrics
@@ -57,11 +58,19 @@ class ErrorResponse(BaseModel):
 async def _ping_nim() -> dict:
     t = time.monotonic()
     try:
+        # HANDOFF Phase A: ping whichever model is ACTUALLY serving "llama"
+        # right now — pinging the (possibly dead) .env base while an
+        # auto-promotion has already moved traffic elsewhere would report
+        # "degraded" for a system that is serving fine. No-op lookup (returns
+        # config.MODELS["llama"] unchanged) when the feature is off.
+        from llm.catalog import role_state
+        await role_state.ensure_fresh()
+        model_id = effective_role_model("llama")
         resp = await llm_client.client.post(
             config.NIM_URL,
             headers={"Authorization": f"Bearer {config.NVIDIA_API_KEY}", "Content-Type": "application/json"},
-            json={"model": config.MODELS["llama"], "messages": [{"role": "user", "content": "hi"}],
-                  **apply_request_extras(config.MODELS["llama"], {"max_tokens": 1})},
+            json={"model": model_id, "messages": [{"role": "user", "content": "hi"}],
+                  **apply_request_extras(model_id, {"max_tokens": 1})},
             timeout=_PING_TIMEOUT,
         )
         latency = int((time.monotonic() - t) * 1000)
@@ -132,6 +141,18 @@ async def _pre_trip(model_id: str) -> None:
 
 
 async def probe_models_on_startup() -> None:
+    # HANDOFF Phase A: probe whichever model is EFFECTIVE for each role, not
+    # always the .env base — an override written before a container restart
+    # (auto-promoted or manually pinned) should keep being health-checked and
+    # pre-tripped correctly. Loads the role-override snapshot fresh since
+    # this runs before any request has had a chance to (no-op when the
+    # feature is off — effective_role_model returns the base unchanged).
+    from llm.catalog import role_state
+    try:
+        await role_state.ensure_fresh()
+    except Exception as e:
+        logger.warning("[probe] role_state refresh failed: %s", e)
+
     async def _probe(role: str, model_id: str) -> None:
         ok, status_code, err = await _startup_probe_attempt(model_id)
         if ok:
@@ -143,6 +164,7 @@ async def probe_models_on_startup() -> None:
             # the answer; pre-trip immediately.
             logger.warning("[probe] model=%s status=%s (definitive) — pre-tripping circuit", role, status_code)
             await _pre_trip(model_id)
+            await check_promotion_for_failed_model(model_id)
             return
 
         # Transient (timeout/5xx/network error/"overloaded") — retry once
@@ -157,8 +179,10 @@ async def probe_models_on_startup() -> None:
 
         logger.warning("[probe] model=%s failed twice (status=%s err=%s) — pre-tripping circuit", role, status_code2, err2)
         await _pre_trip(model_id)
+        await check_promotion_for_failed_model(model_id)
 
-    await asyncio.gather(*(_probe(role, model_id) for role, model_id in config.MODELS.items()))
+    effective = {role: effective_role_model(role) for role in config.MODELS}
+    await asyncio.gather(*(_probe(role, model_id) for role, model_id in effective.items()))
 
 
 @router.get("/health")

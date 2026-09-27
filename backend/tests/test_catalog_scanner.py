@@ -42,10 +42,53 @@ class _FakeResp:
             raise httpx.HTTPStatusError("error", request=None, response=self)
 
 
+class _FakeStreamResp:
+    """Fake streaming response for `llm.catalog.verify.probe_ttfb`'s `.stream()`
+    call. `outcome="ttfb_no_content"` simulates a backend that emits an
+    empty role-only delta and never a real content token (probe_ttfb must
+    return None, not a near-zero false TTFB, in that case). `outcome=
+    "ttfb_reasoning_only"` is the root live-stack repro (meta/muse-glimmer-30b):
+    the model spends its whole probe budget on reasoning_content and hits
+    finish_reason="length" before any content delta — a DIFFERENT failure
+    reason than plain silence, both must still leave ttfb_ms null."""
+    def __init__(self, outcome: str):
+        self.status_code = 200
+        self._outcome = outcome
+
+    async def aiter_lines(self):
+        if self._outcome == "ttfb_no_content":
+            yield 'data: {"choices":[{"delta":{"role":"assistant"}}]}'
+            yield "data: [DONE]"
+            return
+        if self._outcome == "ttfb_reasoning_only":
+            yield 'data: {"choices":[{"delta":{"role":"assistant","reasoning_content":"Say hi"},"finish_reason":"length"}]}'
+            yield "data: [DONE]"
+            return
+        yield 'data: {"choices":[{"delta":{"role":"assistant","content":""}}]}'
+        yield 'data: {"choices":[{"delta":{"content":"hi"}}]}'
+        yield "data: [DONE]"
+
+
+class _FakeStreamCM:
+    def __init__(self, outcome: str):
+        self._resp = _FakeStreamResp(outcome)
+
+    async def __aenter__(self):
+        return self._resp
+
+    async def __aexit__(self, *a):
+        return False
+
+
 class _FakeScanClient:
     """`outcomes[model_id]` drives what the 1-token probe returns for that id:
-    'live' | 'reasoning_leak' | 404 | 410 | 429 | 'timeout' | 'error'. Models
-    absent from `outcomes` default to 'live'."""
+    'live' | 'reasoning_leak' | 404 | 410 | 429 | 'timeout' | 'error' |
+    'verify_fabricated' | 'verify_no_call' | 'verify_leak' | 'ttfb_no_content' |
+    'ttfb_reasoning_only'. Models absent from `outcomes` default to 'live'.
+    The last five (and the 'live' default) all resolve as HTTP 200 "live" on
+    the base 1-token probe — they only change what the SECOND probe
+    (verify_model's tool-call check, detected via `json.get("tools")`) or the
+    streaming TTFB probe returns."""
 
     def __init__(self, listed_models: list[str], outcomes: dict | None = None):
         self.listed_models = listed_models
@@ -57,8 +100,37 @@ class _FakeScanClient:
 
     async def post(self, url, headers=None, json=None, timeout=None):
         model_id = json["model"]
-        self.post_calls.append(model_id)
         outcome = self.outcomes.get(model_id, "live")
+
+        if json.get("tools"):
+            # llm.catalog.verify.verify_model's tool-call probe — a SECOND
+            # call for this same model_id, only reached when the base probe
+            # (below) already returned live.
+            if outcome == "verify_fabricated":
+                # The ising-calibration-1.5-31b repro: a well-formed-LOOKING
+                # tool call whose arguments were never in the schema.
+                return _FakeResp(200, {"choices": [{"message": {"content": None, "tool_calls": [
+                    {"id": "1", "type": "function", "function": {
+                        "name": "get_weather",
+                        "arguments": '{"location": "Paris", "temperature": 20, "humidity": 50}',
+                    }},
+                ]}}]})
+            if outcome == "verify_no_call":
+                return _FakeResp(200, {"choices": [{"message": {"content": "I can't check that."}}]})
+            if outcome == "verify_leak":
+                return _FakeResp(200, {"choices": [{"message": {
+                    "content": "Let me think about this before I answer the question.",
+                    "tool_calls": [{"id": "1", "type": "function", "function": {
+                        "name": "get_weather", "arguments": '{"location": "Paris"}',
+                    }}],
+                }}]})
+            return _FakeResp(200, {"choices": [{"message": {"content": None, "tool_calls": [
+                {"id": "1", "type": "function", "function": {
+                    "name": "get_weather", "arguments": '{"location": "Paris"}',
+                }},
+            ]}}]})
+
+        self.post_calls.append(model_id)
 
         if outcome == "timeout":
             raise httpx.TimeoutException("timed out")
@@ -71,6 +143,10 @@ class _FakeScanClient:
                 "reasoning_content": "thinking about it...", "content": "",
             }}]})
         return _FakeResp(200, {"choices": [{"message": {"content": "hi"}}]})
+
+    def stream(self, method, url, headers=None, json=None, timeout=None):
+        model_id = json["model"]
+        return _FakeStreamCM(self.outcomes.get(model_id, "live"))
 
 
 @pytest.fixture(autouse=True)
@@ -104,11 +180,13 @@ def _wire_store(monkeypatch, *, existing_status=None, upserts=None, delisted_cal
     async def _fake_list_rows(db, **kwargs):
         return [SimpleNamespace(id=k, status=v) for k, v in existing_status.items()]
 
-    async def _fake_upsert(db, model_id, *, status, http_status, latency_ms, label, seed_enabled, reasoning=None):
+    async def _fake_upsert(db, model_id, *, status, http_status, latency_ms, label, seed_enabled, reasoning=None,
+                            ttfb_ms=None, tool_ok=None, reasoning_leak=None, ttfb_fail_reason=None, verified=False):
         upserts.append({
             "id": model_id, "status": status, "http_status": http_status,
             "latency_ms": latency_ms, "label": label, "seed_enabled": seed_enabled,
-            "reasoning": reasoning,
+            "reasoning": reasoning, "ttfb_ms": ttfb_ms, "tool_ok": tool_ok,
+            "reasoning_leak": reasoning_leak, "ttfb_fail_reason": ttfb_fail_reason, "verified": verified,
         })
 
     async def _fake_mark_delisted(db, seen_ids):
@@ -210,6 +288,103 @@ class TestRunScan:
         await scanner.run_scan(trigger="manual")
 
         assert delisted_calls == [{"still/here"}]
+
+    @pytest.mark.asyncio
+    async def test_ttfb_and_tool_ok_recorded_for_a_well_formed_live_model(self, monkeypatch):
+        """HANDOFF Phase A prerequisite — a live model gets a second, stricter
+        probe pass: ttfb_ms from the streaming probe, tool_ok from
+        verify_model's well-formed-tool-call check."""
+        fake = _FakeScanClient(["good/model"])
+        monkeypatch.setattr(llm_client, "client", fake)
+        upserts, _ = _wire_store(monkeypatch)
+
+        await scanner.run_scan(trigger="manual")
+
+        row = upserts[0]
+        assert row["verified"] is True
+        assert row["ttfb_ms"] is not None and row["ttfb_ms"] >= 0
+        assert row["tool_ok"] is True
+
+    @pytest.mark.asyncio
+    async def test_tool_ok_false_when_model_fabricates_argument_keys(self, monkeypatch):
+        """The ising-calibration-1.5-31b repro: a well-formed-LOOKING tool
+        call whose arguments were never declared by the schema (it invented
+        temperature/humidity keys) must fail tool_ok, not pass it."""
+        fake = _FakeScanClient(["ising/calibration-1.5-31b"], outcomes={"ising/calibration-1.5-31b": "verify_fabricated"})
+        monkeypatch.setattr(llm_client, "client", fake)
+        upserts, _ = _wire_store(monkeypatch)
+
+        await scanner.run_scan(trigger="manual")
+
+        assert upserts[0]["status"] == "live"        # the base probe still succeeds
+        assert upserts[0]["tool_ok"] is False         # but the stricter check rejects it
+
+    @pytest.mark.asyncio
+    async def test_tool_ok_false_when_model_never_calls_the_tool(self, monkeypatch):
+        fake = _FakeScanClient(["refuses/tools"], outcomes={"refuses/tools": "verify_no_call"})
+        monkeypatch.setattr(llm_client, "client", fake)
+        upserts, _ = _wire_store(monkeypatch)
+
+        await scanner.run_scan(trigger="manual")
+
+        assert upserts[0]["tool_ok"] is False
+
+    @pytest.mark.asyncio
+    async def test_reasoning_leak_flag_from_verify_probe_content(self, monkeypatch):
+        fake = _FakeScanClient(["leaky/verify-model"], outcomes={"leaky/verify-model": "verify_leak"})
+        monkeypatch.setattr(llm_client, "client", fake)
+        upserts, _ = _wire_store(monkeypatch)
+
+        await scanner.run_scan(trigger="manual")
+
+        assert upserts[0]["reasoning_leak"] is True
+
+    @pytest.mark.asyncio
+    async def test_ttfb_none_when_stream_never_yields_content(self, monkeypatch):
+        fake = _FakeScanClient(["slow/never-answers"], outcomes={"slow/never-answers": "ttfb_no_content"})
+        monkeypatch.setattr(llm_client, "client", fake)
+        upserts, _ = _wire_store(monkeypatch)
+
+        await scanner.run_scan(trigger="manual")
+
+        assert upserts[0]["ttfb_ms"] is None
+        assert upserts[0]["ttfb_fail_reason"] == "no_content"
+
+    @pytest.mark.asyncio
+    async def test_ttfb_reasoning_only_repro_recorded_distinctly_and_not_promotable(self, monkeypatch):
+        """The exact root live-stack repro (meta/muse-glimmer-30b): the model
+        spends its whole probe budget on reasoning_content and hits
+        finish_reason="length" before any content delta. Must record a
+        DIFFERENT, distinguishable reason than plain silence — and either way
+        ttfb_ms stays null, so the row is never promotable."""
+        fake = _FakeScanClient(["meta/muse-glimmer-30b"], outcomes={"meta/muse-glimmer-30b": "ttfb_reasoning_only"})
+        monkeypatch.setattr(llm_client, "client", fake)
+        upserts, _ = _wire_store(monkeypatch)
+
+        await scanner.run_scan(trigger="manual")
+
+        assert upserts[0]["ttfb_ms"] is None
+        assert upserts[0]["ttfb_fail_reason"] == "reasoning_only"
+        assert upserts[0]["status"] == "live"  # the base liveness probe still succeeds
+        assert upserts[0]["verified"] is True  # the second probe pass DID run — this isn't "never probed"
+
+    @pytest.mark.asyncio
+    async def test_verified_stays_false_and_ttfb_tool_ok_stay_none_for_a_non_live_result(self, monkeypatch):
+        """A model that never answers the base probe gets NO opinion from the
+        second, stricter probe pass — verify_model/probe_ttfb must not even
+        be attempted for a 404/410/timeout/error result."""
+        fake = _FakeScanClient(["dead/model"], outcomes={"dead/model": 404})
+        monkeypatch.setattr(llm_client, "client", fake)
+        upserts, _ = _wire_store(monkeypatch)
+
+        await scanner.run_scan(trigger="manual")
+
+        row = upserts[0]
+        assert row["status"] == "not_found"
+        assert row["verified"] is False
+        assert row["ttfb_ms"] is None
+        assert row["tool_ok"] is None
+        assert row["reasoning_leak"] is None
 
     @pytest.mark.asyncio
     async def test_reasoning_flag_set_when_content_empty_but_reasoning_content_present(self, monkeypatch):

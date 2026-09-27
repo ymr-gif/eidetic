@@ -104,6 +104,34 @@ class TestListCatalog:
         assert body["models"][0]["is_role_model"] is False
         assert body["scan_meta"]["scanned"] == 5
 
+    def test_verify_fields_are_surfaced_not_db_only(self, monkeypatch):
+        """Root observability follow-up (2026-09-27): ttfb_ms/tool_ok/
+        reasoning_leak/ttfb_fail_reason/verified_at were missing from this
+        response entirely — the root live-stack test could only see them by
+        querying Postgres by hand."""
+        now = datetime.now(timezone.utc)
+        rows = [_row(ttfb_ms=None, tool_ok=True, reasoning_leak=False,
+                      ttfb_fail_reason="reasoning_only", verified_at=now)]
+
+        async def _fake_list_rows(db, **kwargs):
+            return rows
+
+        async def _fake_get_scan_meta():
+            return None
+
+        monkeypatch.setattr(admin_models, "list_rows", _fake_list_rows)
+        monkeypatch.setattr(admin_models, "get_scan_meta", _fake_get_scan_meta)
+
+        mock_db = _mock_db()
+        client = _make_client(mock_db)
+        resp = client.get("/admin/models", headers={"Authorization": "Bearer x"})
+        row = resp.json()["models"][0]
+        assert row["ttfb_ms"] is None
+        assert row["tool_ok"] is True
+        assert row["reasoning_leak"] is False
+        assert row["ttfb_fail_reason"] == "reasoning_only"
+        assert row["verified_at"] is not None
+
 
 class TestPatchCatalogModel:
     def test_404_for_unknown_model(self, monkeypatch):
@@ -321,3 +349,135 @@ class TestRescan:
         resp = client.post("/admin/models/rescan", headers={"Authorization": "Bearer x"})
         assert resp.status_code == 202
         assert resp.json() == {"queued": True}
+
+
+class TestVerifyCatalogModel:
+    """POST /admin/models/{id:path}/verify (HANDOFF Phase A prerequisite) —
+    runs llm.catalog.verify.verify_model AND llm.catalog.verify.probe_ttfb on
+    demand and persists both results on the row, same pair the scanner runs
+    automatically for every live row.
+
+    Root live-stack finding (2026-09-27): this endpoint originally only
+    refreshed tool_ok/reasoning_leak, never ttfb_ms — an admin could not make
+    a model promotable from the panel alone (a null ttfb_ms keeps it out of
+    list_promotion_candidates regardless of tool_ok)."""
+
+    def _fake_verify_model(self, result):
+        async def _f(model_id):
+            return result
+        return _f
+
+    def _fake_probe_ttfb(self, result):
+        async def _f(model_id, sem):
+            return result
+        return _f
+
+    def test_requires_admin(self):
+        mock_db = _mock_db()
+        client = _make_client(mock_db, user=PLAIN)
+        resp = client.post("/admin/models/z-ai/glm-5.3-flash/verify", headers={"Authorization": "Bearer x"})
+        assert resp.status_code == 403
+
+    def test_404_for_unknown_model(self, monkeypatch):
+        async def _fake_get_row(db, model_id):
+            return None
+
+        monkeypatch.setattr(admin_models, "get_row", _fake_get_row)
+        mock_db = _mock_db()
+        client = _make_client(mock_db)
+        resp = client.post("/admin/models/nope/nothing/verify", headers={"Authorization": "Bearer x"})
+        assert resp.status_code == 404
+
+    def test_persists_both_ttfb_and_tool_ok_results_and_publishes(self, monkeypatch):
+        row = _row(ttfb_ms=None, tool_ok=None, reasoning_leak=None, ttfb_fail_reason=None, verified_at=None)
+
+        async def _fake_get_row(db, model_id):
+            assert model_id == "z-ai/glm-5.3-flash"
+            return row
+
+        monkeypatch.setattr(admin_models, "get_row", _fake_get_row)
+        monkeypatch.setattr(admin_models, "verify_model", self._fake_verify_model(
+            {"tool_ok": True, "reasoning_leak": False, "error": None, "latency_ms": 120}))
+        monkeypatch.setattr(admin_models, "probe_ttfb", self._fake_probe_ttfb(
+            {"ttfb_ms": 1354, "fail_reason": None}))
+        mock_db = _mock_db()
+        client = _make_client(mock_db)
+
+        resp = client.post("/admin/models/z-ai/glm-5.3-flash/verify", headers={"Authorization": "Bearer x"})
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "model_id": "z-ai/glm-5.3-flash", "ttfb_ms": 1354, "ttfb_fail_reason": None,
+            "tool_ok": True, "reasoning_leak": False, "error": None, "latency_ms": 120,
+        }
+        assert row.ttfb_ms == 1354
+        assert row.ttfb_fail_reason is None
+        assert row.tool_ok is True
+        assert row.reasoning_leak is False
+        assert row.verified_at is not None
+        admin_models.catalog_cache.publish.assert_awaited_once()
+
+    def test_rejects_a_fabricated_argument_result(self, monkeypatch):
+        """The ising-calibration-1.5-31b class of failure surfaces here too —
+        an admin re-checking a suspect model sees tool_ok=False persisted."""
+        row = _row()
+
+        async def _fake_get_row(db, model_id):
+            return row
+
+        monkeypatch.setattr(admin_models, "get_row", _fake_get_row)
+        monkeypatch.setattr(admin_models, "verify_model", self._fake_verify_model(
+            {"tool_ok": False, "reasoning_leak": False, "error": None, "latency_ms": 90}))
+        monkeypatch.setattr(admin_models, "probe_ttfb", self._fake_probe_ttfb(
+            {"ttfb_ms": 800, "fail_reason": None}))
+        mock_db = _mock_db()
+        client = _make_client(mock_db)
+
+        resp = client.post("/admin/models/z-ai/glm-5.3-flash/verify", headers={"Authorization": "Bearer x"})
+        assert resp.status_code == 200
+        assert row.tool_ok is False
+
+    def test_ttfb_failure_reason_persisted_when_the_probe_fails_structurally(self, monkeypatch):
+        """The exact repro this closes the loop on: a model can now be
+        re-checked from the admin panel and see WHY it still isn't
+        promotable (e.g. reasoning_only) without querying Postgres by hand."""
+        row = _row()
+
+        async def _fake_get_row(db, model_id):
+            return row
+
+        monkeypatch.setattr(admin_models, "get_row", _fake_get_row)
+        monkeypatch.setattr(admin_models, "verify_model", self._fake_verify_model(
+            {"tool_ok": True, "reasoning_leak": False, "error": None, "latency_ms": 90}))
+        monkeypatch.setattr(admin_models, "probe_ttfb", self._fake_probe_ttfb(
+            {"ttfb_ms": None, "fail_reason": "reasoning_only"}))
+        mock_db = _mock_db()
+        client = _make_client(mock_db)
+
+        resp = client.post("/admin/models/meta/muse-glimmer-30b/verify", headers={"Authorization": "Bearer x"})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["ttfb_ms"] is None
+        assert body["ttfb_fail_reason"] == "reasoning_only"
+        assert row.ttfb_ms is None
+        assert row.ttfb_fail_reason == "reasoning_only"
+
+    def test_a_verify_model_failure_does_not_stop_ttfb_from_being_recorded(self, monkeypatch):
+        """The two probes are independent — a network error in one must not
+        discard a successful result from the other."""
+        row = _row()
+
+        async def _fake_get_row(db, model_id):
+            return row
+
+        monkeypatch.setattr(admin_models, "get_row", _fake_get_row)
+        monkeypatch.setattr(admin_models, "verify_model", self._fake_verify_model(
+            {"tool_ok": False, "reasoning_leak": None, "error": "timeout", "latency_ms": None}))
+        monkeypatch.setattr(admin_models, "probe_ttfb", self._fake_probe_ttfb(
+            {"ttfb_ms": 950, "fail_reason": None}))
+        mock_db = _mock_db()
+        client = _make_client(mock_db)
+
+        resp = client.post("/admin/models/z-ai/glm-5.3-flash/verify", headers={"Authorization": "Bearer x"})
+        assert resp.status_code == 200
+        assert row.ttfb_ms == 950  # recorded despite verify_model's own error
+        assert row.tool_ok is False

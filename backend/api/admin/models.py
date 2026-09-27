@@ -9,6 +9,7 @@ HANDOFF Phase 7: enabling a model that has never once answered a live probe
 regardless. The row is still returned by GET either way — this only guards
 the enable action, never visibility.
 """
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -25,6 +26,7 @@ from models import ModelCatalog, User
 from llm.catalog import cache as catalog_cache
 from llm.catalog.scanner import get_scan_meta, is_scan_running, run_scan
 from llm.catalog.store import get_row, list_rows
+from llm.catalog.verify import probe_ttfb, verify_model
 
 from .utils import _audit
 
@@ -56,6 +58,17 @@ def _row_out(row: ModelCatalog) -> dict:
         "request_extras":  row.request_extras,
         "min_max_tokens":  row.min_max_tokens,
         "last_live_at":    row.last_live_at.isoformat() if row.last_live_at else None,
+        # ttfb_ms/tool_ok/reasoning_leak/ttfb_fail_reason/verified_at (HANDOFF
+        # Phase A + root follow-up 2026-09-27): were missing from this
+        # response entirely — the only way to see them was querying Postgres
+        # by hand (exactly the observability gap the root live-stack test
+        # hit). Surfaced here so GET /admin/models alone answers "why isn't
+        # this model an eligible promotion candidate" without DB access.
+        "ttfb_ms":         row.ttfb_ms,
+        "tool_ok":         row.tool_ok,
+        "reasoning_leak":  row.reasoning_leak,
+        "ttfb_fail_reason": row.ttfb_fail_reason,
+        "verified_at":     row.verified_at.isoformat() if row.verified_at else None,
         "last_checked":    row.last_checked.isoformat() if row.last_checked else None,
         "first_seen":      row.first_seen.isoformat()   if row.first_seen   else None,
         "updated_at":      row.updated_at.isoformat()   if row.updated_at   else None,
@@ -73,6 +86,53 @@ async def list_catalog(
     rows = await list_rows(db, q=q, status=status)
     meta = await get_scan_meta()
     return {"models": [_row_out(r) for r in rows], "scan_meta": meta}
+
+
+@router.post("/models/{model_id:path}/verify")
+async def verify_catalog_model(
+    model_id: str,
+    admin:    User        = Depends(require_role("admin")),
+    db:       AsyncSession = Depends(get_db),
+):
+    """Run BOTH stricter probes on demand — llm.catalog.verify.verify_model
+    (the tool-call check) AND probe_ttfb (streaming time-to-first-token) —
+    the same pair the scanner runs automatically for every live row.
+
+    Root live-stack finding (2026-09-27): this endpoint originally only
+    refreshed `tool_ok`/`reasoning_leak`, never `ttfb_ms` — an admin could
+    not make a model promotable from the panel alone (a null `ttfb_ms` keeps
+    it out of `list_promotion_candidates` regardless of `tool_ok`), which
+    defeats the point of a manual "verify this model" action. Both probes
+    run concurrently; failures in either are independent (a `verify_model`
+    network error doesn't stop `ttfb_ms` from being recorded and vice versa)."""
+    row = await get_row(db, model_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Model not found in catalog")
+
+    ttfb_result, verify_result = await asyncio.gather(
+        probe_ttfb(model_id, asyncio.Semaphore(1)),
+        verify_model(model_id),
+    )
+    row.ttfb_ms = ttfb_result["ttfb_ms"]
+    row.ttfb_fail_reason = ttfb_result["fail_reason"]
+    row.tool_ok = verify_result["tool_ok"]
+    row.reasoning_leak = verify_result["reasoning_leak"]
+    row.verified_at = datetime.now(timezone.utc)
+    row.updated_at = row.verified_at
+
+    result = {
+        "ttfb_ms":          ttfb_result["ttfb_ms"],
+        "ttfb_fail_reason": ttfb_result["fail_reason"],
+        "tool_ok":          verify_result["tool_ok"],
+        "reasoning_leak":   verify_result["reasoning_leak"],
+        "error":            verify_result["error"],
+        "latency_ms":       verify_result["latency_ms"],
+    }
+    await _audit(db, admin, "model_catalog.verified", detail={"model_id": model_id, **result})
+    await db.commit()
+    await catalog_cache.publish()
+
+    return {"model_id": model_id, **result}
 
 
 class ModelPatch(BaseModel):

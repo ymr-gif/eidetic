@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends
 import config
 from auth.security import get_current_user
 from llm.catalog import cache as catalog_cache
+from llm.catalog import role_state
+from llm.catalog.promotion import effective_role_model
 from models import User
 
 router = APIRouter(prefix="/models", tags=["models"])
@@ -17,12 +19,18 @@ router = APIRouter(prefix="/models", tags=["models"])
 @router.get("")
 async def list_models(current_user: User = Depends(get_current_user)):
     await catalog_cache.ensure_fresh()
+    await role_state.ensure_fresh()
 
     role_ids = set(config.MODELS.values())
     out = []
 
     for role, model_id in config.MODELS.items():
         entry = catalog_cache.get_entry(model_id) or {}
+        # HANDOFF Phase A: `effective`/`promoted` are always present (default
+        # to the base id / False) so the shape is stable whether or not
+        # auto-promotion is enabled — effective_role_model is a no-op when
+        # the flag is off.
+        effective_id = effective_role_model(role)
         out.append({
             "id":             model_id,
             "label":          entry.get("label") or role.capitalize(),
@@ -30,6 +38,8 @@ async def list_models(current_user: User = Depends(get_current_user)):
             "status":         entry.get("status", "live"),
             "latency_ms":     entry.get("latency_ms"),
             "context_window": config.CONTEXT_WINDOWS.get(model_id) or entry.get("context_window"),
+            "effective":      effective_id,
+            "promoted":       effective_id != model_id,
         })
 
     for model_id in catalog_cache.available_ids():

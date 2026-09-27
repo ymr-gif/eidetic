@@ -88,6 +88,12 @@ ARQ_JOB_FAILED = Counter(
     ["job_type"],
 )
 
+MODEL_AUTO_PROMOTIONS = Counter(
+    "model_auto_promotions_total",
+    "Automatic role model promotions/reverts (HANDOFF Phase A)",
+    ["role", "action"],  # action: promote | revert | no_candidate
+)
+
 # ─────────────────────────────────────────────
 # SNAPSHOT EXPORT
 # ─────────────────────────────────────────────

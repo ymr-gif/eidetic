@@ -198,7 +198,11 @@ async def classify_intent_hybrid(message: str, request_id: str = "") -> str:
 async def route(message: str, request_id: str) -> tuple[str, float]:
     start  = time.monotonic()
     choice = classify(message)
-    model  = config.MODELS.get(choice, config.MODELS["llama"])
+    # HANDOFF Phase A: route to the role's EFFECTIVE model, not always its
+    # .env base — a no-op (returns config.MODELS[choice]) when auto-promotion
+    # is off or no override is active.
+    from llm.catalog.promotion import effective_role_model
+    model  = effective_role_model(choice) if choice in config.MODELS else effective_role_model("llama")
     latency_ms = (time.monotonic() - start) * 1000
     logger.info("[route] rid=%s model=%s latency_ms=%.2f", request_id, model, latency_ms)
     return model, latency_ms

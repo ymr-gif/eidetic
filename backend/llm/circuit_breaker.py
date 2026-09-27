@@ -13,6 +13,17 @@ _COOLDOWN  = 90
 _failures: dict[str, int]    = {}
 _open:     dict[str, bool]   = {}
 _open_time: dict[str, float] = {}
+# First-failure timestamp since the last success (HANDOFF Phase A,
+# auto-promotion). Distinct from `_open_time`: `is_open()` resets `_failures`
+# to 0 after `_COOLDOWN` (90s) so a model can re-earn a clean slate, but that
+# reset is NOT evidence of recovery — nothing re-probes the model, it just
+# gets one more real request to prove itself. `_unhealthy_since` is only ever
+# cleared by an actual `record_success()`, so a model that keeps failing every
+# real attempt (re-opening the breaker again and again past each cooldown)
+# still reports how long it has been continuously down. Consulted by
+# llm/catalog/promotion.py:consider_promotion (promote only after
+# AUTO_PROMOTE_MIN_DOWN_SEC of continuous failure, "not on a single 503").
+_unhealthy_since: dict[str, float] = {}
 
 
 def _redis_key(model: str) -> str:
@@ -32,6 +43,8 @@ def is_open(model: str) -> bool:
 
 async def record_failure(model: str) -> None:
     _failures[model] = _failures.get(model, 0) + 1
+    if model not in _unhealthy_since:
+        _unhealthy_since[model] = time.time()
     if _failures[model] >= _THRESHOLD:
         _open[model]      = True
         _open_time[model] = time.time()
@@ -54,6 +67,7 @@ async def record_failure(model: str) -> None:
 
 def record_success(model: str) -> None:
     _failures[model] = 0
+    _unhealthy_since.pop(model, None)
     _open.pop(model, None)
     try:
         from config import USE_REDIS
@@ -63,6 +77,14 @@ def record_success(model: str) -> None:
             asyncio.get_event_loop().create_task(get_redis().delete(_redis_key(model)))
     except Exception:
         pass
+
+
+def unhealthy_since(model: str) -> float | None:
+    """`time.time()` of the first consecutive failure since the last success,
+    or None if the model is currently healthy (no failure recorded since its
+    last success, or it has never failed). See the `_unhealthy_since` comment
+    above for why this is independent of `is_open()`'s 90s cooldown reset."""
+    return _unhealthy_since.get(model)
 
 
 async def restore_circuit_state() -> None:

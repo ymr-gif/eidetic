@@ -35,6 +35,7 @@ from llm.endpoint import _probe_url
 from llm.catalog import cache as catalog_cache
 from llm.catalog.labels import derive_label, is_chat_candidate
 from llm.catalog.store import list_rows, mark_delisted, upsert_scan_result
+from llm.catalog.verify import probe_ttfb, verify_model
 
 logger = logging.getLogger("catalog.scanner")
 
@@ -69,7 +70,19 @@ async def _list_models() -> list[str]:
 
 async def _probe_one(model_id: str, sem: asyncio.Semaphore) -> dict:
     """One raw-httpx 1-token probe — bypasses llm.nim entirely (no circuit
-    breaker read/write, no Prometheus counters): this is scanner traffic."""
+    breaker read/write, no Prometheus counters): this is scanner traffic.
+    The base probe's own network call is bounded by `sem`; for a result that
+    comes back live, two FURTHER probes run — the streaming TTFB measurement
+    and llm.catalog.verify.verify_model's tool-call check, HANDOFF Phase A's
+    "probe quality" prerequisite. Both are called AFTER this function's own
+    `async with sem:` block has already exited (each of them acquires `sem`
+    itself, for its own network call) — nesting a second `async with sem:`
+    inside the first would hold two slots for one in-flight model and, at
+    `CATALOG_PROBE_CONCURRENCY=1`, deadlock outright (the only holder of the
+    single slot would then wait on itself). `verified=True` marks the result
+    so store.upsert_scan_result knows to write ttfb_ms/tool_ok/
+    reasoning_leak/verified_at (never for a non-live result — those fields
+    are left exactly as they were, not reset to None)."""
     import llm.client as llm_client
     async with sem:
         t0 = time.monotonic()
@@ -82,16 +95,24 @@ async def _probe_one(model_id: str, sem: asyncio.Semaphore) -> dict:
             )
         except httpx.TimeoutException:
             return {"id": model_id, "status": "timeout", "http_status": None,
-                    "latency_ms": int((time.monotonic() - t0) * 1000), "reasoning": None}
+                    "latency_ms": int((time.monotonic() - t0) * 1000), "reasoning": None,
+                    "ttfb_ms": None, "tool_ok": None, "reasoning_leak": None,
+                    "ttfb_fail_reason": None, "verified": False}
         except Exception as e:
             logger.warning("[catalog.scanner] probe error model=%s err=%s", model_id, e)
             return {"id": model_id, "status": "error", "http_status": None,
-                    "latency_ms": int((time.monotonic() - t0) * 1000), "reasoning": None}
+                    "latency_ms": int((time.monotonic() - t0) * 1000), "reasoning": None,
+                    "ttfb_ms": None, "tool_ok": None, "reasoning_leak": None,
+                    "ttfb_fail_reason": None, "verified": False}
 
         latency_ms = int((time.monotonic() - t0) * 1000)
+        _base = {"id": model_id, "latency_ms": latency_ms, "reasoning": None,
+                 "ttfb_ms": None, "tool_ok": None, "reasoning_leak": None,
+                 "ttfb_fail_reason": None, "verified": False}
 
-        if resp.status_code == 200:
-            reasoning = None
+        is_live = resp.status_code == 200
+        reasoning = None
+        if is_live:
             try:
                 data = resp.json()
                 choices = data.get("choices") or []
@@ -102,14 +123,22 @@ async def _probe_one(model_id: str, sem: asyncio.Semaphore) -> dict:
                     reasoning = bool(reasoning_content) and not (isinstance(content, str) and content.strip())
             except Exception:
                 pass
-            return {"id": model_id, "status": "live", "http_status": 200, "latency_ms": latency_ms, "reasoning": reasoning}
-        if resp.status_code == 404:
-            return {"id": model_id, "status": "not_found", "http_status": 404, "latency_ms": latency_ms, "reasoning": None}
-        if resp.status_code == 410:
-            return {"id": model_id, "status": "gone", "http_status": 410, "latency_ms": latency_ms, "reasoning": None}
-        if resp.status_code == 429:
-            return {"id": model_id, "status": _KEEP_PRIOR_STATUS, "http_status": 429, "latency_ms": latency_ms, "reasoning": None}
-        return {"id": model_id, "status": "error", "http_status": resp.status_code, "latency_ms": latency_ms, "reasoning": None}
+        elif resp.status_code == 404:
+            return {**_base, "status": "not_found", "http_status": 404}
+        elif resp.status_code == 410:
+            return {**_base, "status": "gone", "http_status": 410}
+        elif resp.status_code == 429:
+            return {**_base, "status": _KEEP_PRIOR_STATUS, "http_status": 429}
+        else:
+            return {**_base, "status": "error", "http_status": resp.status_code}
+
+    # `sem` released above — the two probes below each acquire it themselves.
+    ttfb_result = await probe_ttfb(model_id, sem)
+    verify_result = await verify_model(model_id, sem)
+    return {**_base, "status": "live", "http_status": 200, "reasoning": reasoning,
+            "ttfb_ms": ttfb_result["ttfb_ms"], "tool_ok": verify_result["tool_ok"],
+            "reasoning_leak": verify_result["reasoning_leak"],
+            "ttfb_fail_reason": ttfb_result["fail_reason"], "verified": True}
 
 
 async def _acquire_lock() -> bool:
@@ -164,6 +193,9 @@ async def run_scan(trigger: str = "cron") -> dict:
                     status=status, http_status=result["http_status"],
                     latency_ms=result["latency_ms"], label=derive_label(result["id"]),
                     seed_enabled=result["id"] in role_ids, reasoning=result["reasoning"],
+                    ttfb_ms=result["ttfb_ms"], tool_ok=result["tool_ok"],
+                    reasoning_leak=result["reasoning_leak"],
+                    ttfb_fail_reason=result["ttfb_fail_reason"], verified=result["verified"],
                 )
             delisted = await mark_delisted(db, set(candidates))
             await db.commit()

@@ -39,6 +39,11 @@ async def upsert_scan_result(
     label: str | None,
     seed_enabled: bool,
     reasoning: bool | None = None,
+    ttfb_ms: int | None = None,
+    tool_ok: bool | None = None,
+    reasoning_leak: bool | None = None,
+    ttfb_fail_reason: str | None = None,
+    verified: bool = False,
 ) -> ModelCatalog:
     """Apply one scan probe result to the row for `model_id`, creating it if
     this is the first time the scanner has ever seen this id. `seed_enabled`
@@ -51,7 +56,26 @@ async def upsert_scan_result(
     goes backward to null once a model has genuinely been live at least
     once. Consulted by llm/catalog/cache.py:_entry_available so a model that
     has only ever timed out/errored (never live) isn't tolerated as
-    "available" just because fail_count hasn't reached 2 yet."""
+    "available" just because fail_count hasn't reached 2 yet.
+
+    `ttfb_ms`/`tool_ok`/`reasoning_leak` (migration 052, HANDOFF Phase A
+    prerequisite) are the scanner's second, stricter probe — run for LIVE
+    rows only (the scanner passes `verified=True` exactly then). `verified`
+    is the "did we even attempt the second probe this cycle" flag: a model
+    that came back not_found/gone/timeout/error this scan gets NO opinion on
+    tool_ok/reasoning_leak (left exactly as they were, not reset to None —
+    the last time it WAS verified is still informative), while a live model
+    always gets a fresh verdict (including a fresh None/False if this cycle's
+    verify_model() call itself failed) so a promoted candidate can't coast on
+    a stale tool_ok=True from before it regressed.
+
+    `ttfb_fail_reason` (migration 053, root live-stack finding 2026-09-27):
+    rides alongside `ttfb_ms` under the same `verified` gate — set (or
+    cleared back to null on success) every verified pass, never touched
+    otherwise. Distinguishes an ACTIVELY-FAILED TTFB probe (e.g.
+    "reasoning_only" — the model spent its whole budget on reasoning_content
+    and never reached content) from a row that has simply never been
+    TTFB-probed."""
     now = datetime.now(timezone.utc)
     row = await db.get(ModelCatalog, model_id)
 
@@ -66,6 +90,11 @@ async def upsert_scan_result(
             enabled=seed_enabled,
             reasoning=reasoning,
             last_live_at=now if status == "live" else None,
+            ttfb_ms=ttfb_ms if verified else None,
+            tool_ok=tool_ok if verified else None,
+            reasoning_leak=reasoning_leak if verified else None,
+            ttfb_fail_reason=ttfb_fail_reason if verified else None,
+            verified_at=now if verified else None,
             first_seen=now,
             last_checked=now,
             updated_at=now,
@@ -81,6 +110,12 @@ async def upsert_scan_result(
         row.last_live_at = now
     if reasoning is not None:
         row.reasoning = reasoning
+    if verified:
+        row.ttfb_ms = ttfb_ms
+        row.tool_ok = tool_ok
+        row.reasoning_leak = reasoning_leak
+        row.ttfb_fail_reason = ttfb_fail_reason
+        row.verified_at = now
     if not row.label and label:
         row.label = label
     row.last_checked = now

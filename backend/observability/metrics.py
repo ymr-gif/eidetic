@@ -7,6 +7,7 @@ from .prom_metrics import (
     CACHE_WRITE,
     CIRCUIT_TRIPS,
     FALLBACK_COUNT,
+    MODEL_AUTO_PROMOTIONS,
 )
 
 
@@ -39,3 +40,4 @@ def record_cache_miss()             -> None: CACHE_MISS.inc()
 def record_cache_write()            -> None: CACHE_WRITE.inc()
 def record_circuit_trip(model: str) -> None: CIRCUIT_TRIPS.inc()
 def record_fallback()               -> None: FALLBACK_COUNT.inc()
+def record_auto_promotion(role: str, action: str) -> None: MODEL_AUTO_PROMOTIONS.labels(role=role, action=action).inc()

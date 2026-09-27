@@ -123,3 +123,125 @@ class TestUpsertScanResultLastLiveAt:
         )
         assert row.last_live_at is None
         assert row.fail_count == 2
+
+
+class TestUpsertScanResultVerifyFields:
+    """HANDOFF Phase A prerequisite — ttfb_ms/tool_ok/reasoning_leak/verified_at
+    are only written when `verified=True` (the scanner passes this only for a
+    live result it actually ran the second, stricter probe pass on)."""
+
+    @pytest.mark.asyncio
+    async def test_new_row_verified_records_all_four_fields(self):
+        db = _FakeSession(existing=None)
+        row = await store.upsert_scan_result(
+            db, "vendor/model", status="live", http_status=200, latency_ms=100,
+            label="Model", seed_enabled=False,
+            ttfb_ms=250, tool_ok=True, reasoning_leak=False, verified=True,
+        )
+        assert row.ttfb_ms == 250
+        assert row.tool_ok is True
+        assert row.reasoning_leak is False
+        assert row.verified_at is not None
+
+    @pytest.mark.asyncio
+    async def test_new_row_not_verified_leaves_all_four_fields_none(self):
+        db = _FakeSession(existing=None)
+        row = await store.upsert_scan_result(
+            db, "vendor/model", status="not_found", http_status=404, latency_ms=50,
+            label="Model", seed_enabled=False,
+        )
+        assert row.ttfb_ms is None
+        assert row.tool_ok is None
+        assert row.reasoning_leak is None
+        assert row.verified_at is None
+
+    @pytest.mark.asyncio
+    async def test_existing_row_verified_overwrites_prior_verify_fields(self):
+        old = datetime(2026, 9, 1, tzinfo=timezone.utc)
+        existing = _existing_row(status="live", fail_count=0, last_live_at=old,
+                                  ttfb_ms=9000, tool_ok=False, reasoning_leak=True, verified_at=old)
+        db = _FakeSession(existing=existing)
+        row = await store.upsert_scan_result(
+            db, "vendor/model", status="live", http_status=200, latency_ms=90,
+            label=None, seed_enabled=False,
+            ttfb_ms=300, tool_ok=True, reasoning_leak=False, verified=True,
+        )
+        assert row.ttfb_ms == 300
+        assert row.tool_ok is True
+        assert row.reasoning_leak is False
+        assert row.verified_at > old
+
+    @pytest.mark.asyncio
+    async def test_existing_row_scan_without_verify_leaves_prior_verify_fields_untouched(self):
+        """A row that blips to timeout this cycle gets NO opinion from the
+        (unattempted) second probe pass — its LAST verify result stays, not
+        reset to None (informative: it WAS verified as of some earlier scan)."""
+        old = datetime(2026, 9, 1, tzinfo=timezone.utc)
+        existing = _existing_row(status="live", fail_count=0, last_live_at=old,
+                                  ttfb_ms=300, tool_ok=True, reasoning_leak=False, verified_at=old)
+        db = _FakeSession(existing=existing)
+        row = await store.upsert_scan_result(
+            db, "vendor/model", status="timeout", http_status=None, latency_ms=None,
+            label=None, seed_enabled=False,
+        )
+        assert row.ttfb_ms == 300
+        assert row.tool_ok is True
+        assert row.reasoning_leak is False
+        assert row.verified_at == old
+
+
+class TestUpsertScanResultTtfbFailReason:
+    """Root live-stack finding (2026-09-27): ttfb_fail_reason must persist
+    alongside ttfb_ms under the same `verified` gate, so a structurally
+    failed TTFB probe is distinguishable from "never probed" at the DB layer
+    too, not just in llm.catalog.verify's return value."""
+
+    @pytest.mark.asyncio
+    async def test_new_row_verified_records_the_fail_reason(self):
+        db = _FakeSession(existing=None)
+        row = await store.upsert_scan_result(
+            db, "meta/muse-glimmer-30b", status="live", http_status=200, latency_ms=100,
+            label="Muse Glimmer", seed_enabled=False,
+            ttfb_ms=None, tool_ok=True, reasoning_leak=False,
+            ttfb_fail_reason="reasoning_only", verified=True,
+        )
+        assert row.ttfb_ms is None
+        assert row.ttfb_fail_reason == "reasoning_only"
+        assert row.tool_ok is True  # reconfirmed live — recorded independently of the ttfb failure
+
+    @pytest.mark.asyncio
+    async def test_not_verified_leaves_fail_reason_none(self):
+        db = _FakeSession(existing=None)
+        row = await store.upsert_scan_result(
+            db, "vendor/model", status="not_found", http_status=404, latency_ms=50,
+            label="Model", seed_enabled=False,
+        )
+        assert row.ttfb_fail_reason is None
+
+    @pytest.mark.asyncio
+    async def test_a_subsequent_successful_probe_clears_the_prior_fail_reason(self):
+        existing = _existing_row(status="live", fail_count=0, last_live_at=datetime.now(timezone.utc),
+                                  ttfb_ms=None, tool_ok=True, reasoning_leak=False,
+                                  ttfb_fail_reason="reasoning_only")
+        db = _FakeSession(existing=existing)
+        row = await store.upsert_scan_result(
+            db, "vendor/model", status="live", http_status=200, latency_ms=90,
+            label=None, seed_enabled=False,
+            ttfb_ms=250, tool_ok=True, reasoning_leak=False,
+            ttfb_fail_reason=None, verified=True,
+        )
+        assert row.ttfb_ms == 250
+        assert row.ttfb_fail_reason is None
+
+    @pytest.mark.asyncio
+    async def test_existing_row_scan_without_verify_leaves_fail_reason_untouched(self):
+        old = datetime(2026, 9, 1, tzinfo=timezone.utc)
+        existing = _existing_row(status="live", fail_count=0, last_live_at=old,
+                                  ttfb_ms=None, tool_ok=True, reasoning_leak=False,
+                                  ttfb_fail_reason="reasoning_only")
+        db = _FakeSession(existing=existing)
+        row = await store.upsert_scan_result(
+            db, "vendor/model", status="timeout", http_status=None, latency_ms=None,
+            label=None, seed_enabled=False,
+        )
+        assert row.ttfb_fail_reason == "reasoning_only"

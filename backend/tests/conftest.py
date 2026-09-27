@@ -25,6 +25,46 @@ os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://u:p@localhost/db")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret")
 
+# ── Pin model-routing config for the unit tier (env-independence) ──────────
+# config.py loads the repo's ../.env via find_dotenv() at import time, so any
+# test that reads config.MODELS / config.MODEL_PRICING / config.MODEL_EMBEDDING
+# silently inherits whatever NVIDIA ids happen to be live TODAY on a
+# developer's machine. That is a real, drifting operational fact (see
+# backend/CLAUDE.md's "Active Models" table) — not something to hardcode
+# around in application code — but it makes the UNIT tier's pass/fail depend
+# on the ambient .env, which is wrong: a developer with a real .env sees
+# "phantom" failures a clean checkout (or CI, which has no .env) does not.
+# Two live facts currently violate invariants several unit tests assume:
+# llama and coder share one model id (2026-09-25 .env swap), and that shared
+# id has no MODEL_PRICING entry.
+#
+# Fix: before `config` is ever imported, pin MODEL_LLAMA/CODER/REASONING/
+# EMBEDDING to config.py's own ORIGINAL code-level defaults — three DISTINCT
+# ids that are also static keys in config.py's own MODEL_PRICING/
+# CONTEXT_WINDOWS tables, restoring exactly the invariants those tests were
+# written against (distinct role buckets, a priced role model, distinct
+# compare labels) rather than weakening the assertions to match today's
+# drifted values. Plain assignment (not setdefault) so this wins over
+# whatever the process environment OR the repo .env already set —
+# `load_dotenv()`'s default `override=False` means a var already present in
+# os.environ when config.py runs is never touched by the .env file's value
+# (same behavior test_backend_mode.py's own comments already document).
+#
+# Gated OFF for the live/infra tiers: RUN_LIVE_NIM=1 / RUN_INFRA=1 mean the
+# developer is intentionally talking to a REAL running stack, and a test that
+# builds a request from config.MODELS (e.g. tests/live/test_chat_nonstream_
+# routing.py's model_override) needs that real server's ACTUAL configured
+# ids, not a locally-pinned fake — pinning there would silently mis-target
+# requests instead of testing what it claims to.
+if not (
+    os.getenv("RUN_LIVE_NIM", "").lower() in ("1", "true", "yes")
+    or os.getenv("RUN_INFRA", "").lower() in ("1", "true", "yes")
+):
+    os.environ["MODEL_LLAMA"]     = "openai/gpt-oss-20b"
+    os.environ["MODEL_CODER"]     = "deepseek-ai/deepseek-v4-flash-0731"
+    os.environ["MODEL_REASONING"] = "nvidia/nemotron-3-super-120b-a12b"
+    os.environ["MODEL_EMBEDDING"] = "nvidia/nemotron-3-embed-1b"
+
 BASE_URL = os.getenv("VERIFY_BASE_URL", "http://localhost:8000").rstrip("/")
 # Usernames may keep sane defaults; passwords have NO literal default. The old admin-secret/
 # user-secret pair was rotated 2026-07-22 and the live values live outside the repo — a missing

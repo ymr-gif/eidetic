@@ -124,7 +124,16 @@ async def _fire(schedule_id: uuid.UUID) -> None:
 
 
 async def sync_schedules(scheduler: AsyncIOScheduler) -> None:
-    """Load all active schedules from DB, add/remove APScheduler jobs to match."""
+    """Load all active schedules from DB, add/remove APScheduler jobs to match.
+
+    Also piggybacks the auto-promotion revert check (HANDOFF Phase A) — the
+    only sufficiently-frequent existing periodic tick (every 5 minutes), used
+    here per the HANDOFF instruction to reuse an existing tick rather than add
+    a new cron entry. `check_reverts()` no-ops entirely when the feature is
+    off and never raises, so it can't affect schedule syncing either way."""
+    from llm.catalog.promotion import check_reverts
+    await check_reverts()
+
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(ScheduledPrompt).where(ScheduledPrompt.is_active == True)

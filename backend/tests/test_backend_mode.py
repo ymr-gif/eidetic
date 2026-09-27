@@ -98,6 +98,20 @@ def test_nim_mode_still_requires_key(monkeypatch):
         importlib.reload(cfg)
 
 
+def test_auto_promote_defaults_disabled_and_inert():
+    """HANDOFF Phase A — ships inert: the flag defaults false and every
+    tunable has the documented default, so a deploy with no new env vars set
+    behaves exactly as before."""
+    importlib.reload(cfg)
+    assert cfg.MODEL_AUTO_PROMOTE_ENABLED is False
+    assert cfg.AUTO_PROMOTE_AUTO_REVERT is True
+    assert cfg.AUTO_PROMOTE_MIN_DOWN_SEC == 120
+    assert cfg.AUTO_PROMOTE_COOLDOWN_MIN == 15
+    assert cfg.AUTO_PROMOTE_RECOVER_MIN == 30
+    assert cfg.AUTO_PROMOTE_MAX_TTFB_MS == 5000
+    assert cfg.AUTO_PROMOTE_MAX_STALE_MIN == 30
+
+
 def test_homeserver_env_overrides(monkeypatch):
     monkeypatch.setenv("LLM_BACKEND", "homeserver")
     monkeypatch.setenv("HOMESERVER_CHAT_URL", "http://192.168.1.50:8080/v1/chat/completions")

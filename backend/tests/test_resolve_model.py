@@ -20,6 +20,7 @@ from fastapi import HTTPException
 
 import config
 from llm.catalog import cache as catalog_cache
+from llm.catalog import role_state
 from api.chat.model_resolve import (
     _resolve_model, lock_unavailable_status_event, resolve_effective_model, resolve_model_strict,
 )
@@ -32,8 +33,10 @@ CATALOG_ID = "z-ai/glm-5.3-flash"
 @pytest.fixture(autouse=True)
 def _reset_catalog():
     catalog_cache._reset_for_tests()
+    role_state._reset_for_tests()
     yield
     catalog_cache._reset_for_tests()
+    role_state._reset_for_tests()
 
 
 def _seed(model_id: str, *, enabled=True, status="live", fail_count=0, last_live_at="2026-09-19T00:00:00+00:00"):
@@ -94,6 +97,40 @@ class TestResolveModel:
         nvidia/nemotron-3-ultra-550b-a55b, status=timeout, fail_count=1."""
         _seed(CATALOG_ID, enabled=True, status="timeout", fail_count=1, last_live_at=None)
         assert _resolve_model(CATALOG_ID) is None
+
+
+class TestResolveModelAutoPromotion:
+    """HANDOFF Phase A — a role name resolves through effective_role_model,
+    so a promoted role routes to its candidate; a literal base id passthrough
+    is unaffected either way."""
+
+    def _seed_override(self, role: str, model_id: str):
+        role_state._replace_snapshot({role: {
+            "role": role, "model_id": model_id, "pinned": False,
+            "promoted_at": "2026-09-26T00:00:00+00:00", "reason": "auto",
+            "base_model_id": config.MODELS[role],
+        }})
+
+    def test_flag_off_is_byte_identical_even_with_an_override_present(self, monkeypatch):
+        monkeypatch.setattr(config, "MODEL_AUTO_PROMOTE_ENABLED", False, raising=False)
+        self._seed_override("llama", CATALOG_ID)
+        assert _resolve_model("llama") == LLAMA
+
+    def test_flag_on_resolves_the_promoted_candidate(self, monkeypatch):
+        monkeypatch.setattr(config, "MODEL_AUTO_PROMOTE_ENABLED", True, raising=False)
+        self._seed_override("llama", CATALOG_ID)
+        assert _resolve_model("llama") == CATALOG_ID
+
+    def test_flag_on_no_override_still_resolves_the_base(self, monkeypatch):
+        monkeypatch.setattr(config, "MODEL_AUTO_PROMOTE_ENABLED", True, raising=False)
+        assert _resolve_model("llama") == LLAMA
+
+    def test_literal_base_id_passthrough_unaffected_by_an_active_promotion(self, monkeypatch):
+        monkeypatch.setattr(config, "MODEL_AUTO_PROMOTE_ENABLED", True, raising=False)
+        self._seed_override("llama", CATALOG_ID)
+        # An explicit pick of the literal base id still names THAT id, not
+        # whatever llama is currently routed to.
+        assert _resolve_model(LLAMA) == LLAMA
 
 
 class TestResolveModelStrict:

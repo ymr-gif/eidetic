@@ -9,22 +9,30 @@ from fastapi import HTTPException
 
 from config import MODELS
 from llm.catalog import cache as catalog_cache
+from llm.catalog.promotion import effective_role_model
 
 
 def _resolve_model(name: str | None) -> str | None:
-    """Role name ('llama'/'coder'/'reasoning') -> its current model id. A
-    literal role id passes through unchanged. Otherwise (Phase 3): an id the
-    live catalog currently considers AVAILABLE (enabled + live, or enabled
-    with at most one recent failed probe AND at least one confirmed-live
-    probe in its history — Phase 7: a model that has never once answered
-    never counts as available) passes through too. Anything else (unknown
-    id, disabled catalog model, a catalog id that has gone
-    not_found/gone/delisted) returns None so the caller falls back to Auto
-    routing rather than sending a request that will just fail."""
+    """Role name ('llama'/'coder'/'reasoning') -> its EFFECTIVE model id
+    (HANDOFF Phase A: `config.MODELS[name]` unless auto-promotion has moved
+    the role elsewhere — `effective_role_model` returns the base id
+    unchanged when the feature is off, so this is a no-op when disabled). A
+    literal BASE role id (from config.MODELS.values(), i.e. an explicit pick
+    of one of the three .env-configured ids) passes through unchanged even
+    if that role is currently promoted elsewhere — this branch resolves a
+    literal id a caller named directly, not a role's current routing.
+    Otherwise (Phase 3): an id the live catalog currently considers
+    AVAILABLE (enabled + live, or enabled with at most one recent failed
+    probe AND at least one confirmed-live probe in its history — Phase 7: a
+    model that has never once answered never counts as available) passes
+    through too. Anything else (unknown id, disabled catalog model, a
+    catalog id that has gone not_found/gone/delisted) returns None so the
+    caller falls back to Auto routing rather than sending a request that
+    will just fail."""
     if not name:
         return None
     if name in MODELS:
-        return MODELS[name]
+        return effective_role_model(name)
     if name in MODELS.values():
         return name
     if catalog_cache.is_available(name):

@@ -13,6 +13,7 @@ from cache import get_cached_response
 from core.db import get_db
 from llm import service
 from llm.catalog import cache as catalog_cache
+from llm.catalog import role_state
 from models import Conversation, ConversationFile, Message, User
 from observability import events, metrics, observability
 from observability.prom_metrics import (
@@ -117,6 +118,9 @@ async def chat_stream(
     # Phase 3 (live model catalog): refresh the in-process snapshot (15s-guarded,
     # no-op most calls) before resolving model_override/locked_model against it.
     await catalog_cache.ensure_fresh()
+    # HANDOFF Phase A: same 15s-guarded refresh for role-override state — see
+    # api/chat/router.py's identical call for the non-stream /chat path.
+    await role_state.ensure_fresh()
 
     conv, rotation_info = await _resolve_conversation(req, current_user, db)
     model_params = _extract_model_params(req)

@@ -14,6 +14,7 @@ from observability import metrics, observability, events
 from llm.router import route, get_context_limit
 from llm.nim import call, call_stream
 from llm.model_extras import apply_request_extras
+from llm.catalog.promotion import check_promotion_for_failed_model, effective_role_model, promotion_status_events
 from llm.tools import execute_tool, ASK_USER_PREFIX, CONFIRM_WRITE_PREFIX, CONFIRM_CALENDAR_PREFIX, TOOL_REGISTRY, ToolContext, get_tool, select_tool_schemas
 
 from models import ExternalSource
@@ -167,10 +168,10 @@ async def generate_response(message: str, request_id: str, model_override: str |
         }
 
     if model_override:
-        fallback_chain = [model_override] + [config.MODELS[k] for k in config.FALLBACK_ORDER if config.MODELS[k] != model_override]
+        fallback_chain = [model_override] + [effective_role_model(k) for k in config.FALLBACK_ORDER if effective_role_model(k) != model_override]
     else:
         model, _ = await route(message, request_id)
-        fallback_chain = [model] + [config.MODELS[k] for k in config.FALLBACK_ORDER if config.MODELS[k] != model]
+        fallback_chain = [model] + [effective_role_model(k) for k in config.FALLBACK_ORDER if effective_role_model(k) != model]
 
     for idx, current_model in enumerate(fallback_chain):
         fallback_used = idx > 0
@@ -182,6 +183,9 @@ async def generate_response(message: str, request_id: str, model_override: str |
 
         if not isinstance(content, str) or not content.strip():
             logger.warning("[service] empty_content model=%s error=%s", current_model, result.get("error"))
+            # HANDOFF Phase A: fire-and-forget — never block this response on
+            # a promotion decision. No-op when the flag is off.
+            asyncio.create_task(check_promotion_for_failed_model(current_model))
             continue
 
         payload = {
@@ -267,30 +271,34 @@ async def generate_stream(
         fallback_chain = [MODEL_VISION]
         route_reason = "vision"
     elif model_override:
-        fallback_chain = [model_override] + [config.MODELS[k] for k in config.FALLBACK_ORDER if config.MODELS[k] != model_override]
+        fallback_chain = [model_override] + [effective_role_model(k) for k in config.FALLBACK_ORDER if effective_role_model(k) != model_override]
         route_reason = "override"
     elif file_ids:
         # Always use reasoning model when files attached — 8B cannot reliably use tool results
-        fallback_chain = [config.MODELS["reasoning"]]
+        fallback_chain = [effective_role_model("reasoning")]
         route_reason = "files"
     elif _needs_memory_tool(message):
-        fallback_chain = [config.MODELS["reasoning"]] + [config.MODELS[k] for k in config.FALLBACK_ORDER if config.MODELS[k] != config.MODELS["reasoning"]]
+        fallback_chain = [effective_role_model("reasoning")] + [effective_role_model(k) for k in config.FALLBACK_ORDER if effective_role_model(k) != effective_role_model("reasoning")]
         route_reason = "memory"
     elif intent == "task":
         # Task intent → tool-eager. Prefer the reasoning model (8B emits tool
         # calls as plain text); keep the rest of the chain as fallback.
-        fallback_chain = [config.MODELS["reasoning"]] + [config.MODELS[k] for k in config.FALLBACK_ORDER if config.MODELS[k] != config.MODELS["reasoning"]]
+        fallback_chain = [effective_role_model("reasoning")] + [effective_role_model(k) for k in config.FALLBACK_ORDER if effective_role_model(k) != effective_role_model("reasoning")]
         route_reason = "task-intent"
     else:
         model, _ = await route(message, request_id)
-        fallback_chain = [model] + [config.MODELS[k] for k in config.FALLBACK_ORDER if config.MODELS[k] != model]
+        fallback_chain = [model] + [effective_role_model(k) for k in config.FALLBACK_ORDER if effective_role_model(k) != model]
         route_reason = "router"
 
     yield {"type": "status", "stage": "route", "detail": f"Routing → {fallback_chain[0]} ({route_reason})", "level": "info"}
+    # HANDOFF Phase A visibility requirement — no-op list when auto-promotion
+    # is off or nothing in this chain is currently auto-promoted.
+    for _promo_ev in promotion_status_events(fallback_chain):
+        yield _promo_ev
 
     # Resolve async connector flags ONCE here so each tool's should_inject() stays a
     # pure, synchronous predicate. Then offer whichever registered tools opt in.
-    _is_reasoning = fallback_chain[0] == config.MODELS["reasoning"]
+    _is_reasoning = fallback_chain[0] == effective_role_model("reasoning")
     _drive_active = False
     _drive_cache_active = False
     _drive_latched = False
@@ -385,8 +393,9 @@ async def generate_stream(
     # Tool-required turns (file ops) must not degrade to 8B — it emits tool
     # calls as plain text instead of using the tool-calling API. Drop llama from the
     # fallback chain when tools are active, but never leave the chain empty.
-    if tools and config.MODELS["llama"] in fallback_chain:
-        _tool_capable = [m for m in fallback_chain if m != config.MODELS["llama"]]
+    _effective_llama = effective_role_model("llama")
+    if tools and _effective_llama in fallback_chain:
+        _tool_capable = [m for m in fallback_chain if m != _effective_llama]
         if _tool_capable:
             fallback_chain = _tool_capable
 
@@ -580,6 +589,8 @@ async def generate_stream(
                     accumulated.clear()
             except Exception as e:
                 logger.warning("[service] stream_failed model=%s started=%s err=%s", current_model, started, e)
+                # HANDOFF Phase A: fire-and-forget, never blocks this response.
+                asyncio.create_task(check_promotion_for_failed_model(current_model))
                 if started:
                     yield {"type": "error", "message": "Stream interrupted"}
                     return
@@ -688,6 +699,8 @@ async def generate_stream(
 
             if not accumulated:
                 logger.warning("[service] empty_stream model=%s", current_model)
+                # HANDOFF Phase A: fire-and-forget, never blocks this response.
+                asyncio.create_task(check_promotion_for_failed_model(current_model))
                 break
 
             full_response = "".join(accumulated)

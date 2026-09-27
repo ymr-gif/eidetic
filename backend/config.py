@@ -118,6 +118,28 @@ STREAM_MAX_TURN_TOKENS = int(os.getenv("STREAM_MAX_TURN_TOKENS", 16000))  # accu
 MAX_RETRIES     = int(os.getenv("MAX_RETRIES", 3))
 FALLBACK_ORDER  = ["reasoning", "coder", "llama"]
 
+# ── Auto-promotion (role failover to a healthy catalog model, HANDOFF Phase A) ─
+# Default false -> byte-identical to today: effective_role_model(role) always
+# returns config.MODELS[role], every consider_promotion()/consider_revert() call
+# no-ops. Root flips it live via /admin/env/reload after watching a forced
+# failure promote + auto-revert once. Never active in LLM_BACKEND=homeserver
+# (no catalog there) — checked in llm/catalog/promotion.py, not here, so a live
+# toggle mid-homeserver-session still no-ops without a restart.
+MODEL_AUTO_PROMOTE_ENABLED  = os.getenv("MODEL_AUTO_PROMOTE_ENABLED", "false").lower() == "true"
+AUTO_PROMOTE_MIN_DOWN_SEC   = _int_env("AUTO_PROMOTE_MIN_DOWN_SEC",   120)  # s, continuous unhealthy time before promoting (llm.circuit_breaker.unhealthy_since)
+AUTO_PROMOTE_COOLDOWN_MIN   = _int_env("AUTO_PROMOTE_COOLDOWN_MIN",    15)  # min, at most one promotion per role in this window
+AUTO_PROMOTE_RECOVER_MIN    = _int_env("AUTO_PROMOTE_RECOVER_MIN",     30)  # min, base model must look healthy this long (consider_revert) before auto-revert
+AUTO_PROMOTE_MAX_TTFB_MS    = _int_env("AUTO_PROMOTE_MAX_TTFB_MS",   5000)  # candidate filter: streaming time-to-first-token ceiling
+AUTO_PROMOTE_MAX_STALE_MIN  = _int_env("AUTO_PROMOTE_MAX_STALE_MIN",   30)  # candidate filter: last_live_at must be this fresh
+AUTO_PROMOTE_AUTO_REVERT    = os.getenv("AUTO_PROMOTE_AUTO_REVERT", "true").lower() == "true"
+# On-demand refresh (root follow-up, 2026-09-26): AUTO_PROMOTE_MAX_STALE_MIN
+# (30min) is far tighter than the 6h scan cadence, so mid-incident there is
+# usually no fresh candidate at all. When consider_promotion finds none, it
+# synchronously re-probes this many already-enabled catalog rows (ordered by
+# last-known ttfb) with the existing probe_ttfb/verify_model before giving
+# up — see llm/catalog/promotion.py:_refresh_stale_candidates.
+AUTO_PROMOTE_REFRESH_MAX    = _int_env("AUTO_PROMOTE_REFRESH_MAX",      3)
+
 # ── LLM endpoint failover (chat only) ────────────────────────────────────────
 # Health-gated primary→NIM selection at the call layer. Purpose: on the Oracle
 # host, prefer the homelab llama.cpp endpoint when it is up (over WireGuard) and
@@ -298,6 +320,20 @@ DEFAULT_MODEL_PRICE_IN    = float(os.getenv("DEFAULT_MODEL_PRICE_IN", "0.50"))
 DEFAULT_MODEL_PRICE_OUT   = float(os.getenv("DEFAULT_MODEL_PRICE_OUT", "1.50"))
 CATALOG_PROBE_CONCURRENCY = _int_env("CATALOG_PROBE_CONCURRENCY", 6)
 CATALOG_PROBE_TIMEOUT     = _int_env("CATALOG_PROBE_TIMEOUT", 20)
+# TTFB/verify probe budgets (root live-stack finding, 2026-09-27): a 5-token
+# budget lets a model that emits a reasoning preamble (reasoning_content)
+# exhaust the whole budget and hit finish_reason="length" before ANY content
+# delta — repro: meta/muse-glimmer-30b with chat_template_kwargs.
+# enable_thinking:false applied (the flag did NOT suppress reasoning_content
+# at 5 tokens, though it does at a larger one), so llm.catalog.verify.
+# probe_ttfb returned None for a model that is actually fine — indistinguishable
+# from "never probed" and structurally unable to measure reasoning models,
+# exactly the ones auto-promotion most needs. Both budgets bumped well past a
+# typical reasoning preamble; llm.catalog.verify.verify_model's tool-call
+# check got the same treatment defensively (it already fails safe — tool_ok
+# stays False on truncation — but a bigger budget avoids false negatives).
+CATALOG_TTFB_PROBE_MAX_TOKENS = _int_env("CATALOG_TTFB_PROBE_MAX_TOKENS", 64)
+CATALOG_VERIFY_MAX_TOKENS     = _int_env("CATALOG_VERIFY_MAX_TOKENS",    300)
 
 # ── Notifications / Web Push (Phase 3c) ──────────────────────────────────────
 VAPID_PUBLIC_KEY  = os.getenv("VAPID_PUBLIC_KEY", "")

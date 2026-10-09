@@ -44,7 +44,7 @@ def fresh(client, admin_headers):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# V-D3 Rate limiting — chat 15 / 60s per user → 429 (isolated to a throwaway user)
+# Rate limiting — chat 15 / 60s per user → 429 (isolated to a throwaway user)
 # ══════════════════════════════════════════════════════════════════════════════
 def test_rate_limit_returns_429(client, fresh):
     h = fresh["headers"]
@@ -59,7 +59,7 @@ def test_rate_limit_returns_429(client, fresh):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# V-D4 Cost cap — rolling window exceeded → 402 (isolated to a throwaway user)
+# Cost cap — rolling window exceeded → 402 (isolated to a throwaway user)
 # ══════════════════════════════════════════════════════════════════════════════
 def test_cost_cap_returns_402(client, admin_headers, fresh):
     """Cost cap is enforced on the **stream** path (the stateful one). Set a near-zero

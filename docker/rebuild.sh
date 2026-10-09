@@ -9,14 +9,14 @@
 # `docker compose up -d --build frontend` was observed rebuilding the api
 # image too (frontend has no real dependency on api's image, but compose
 # still walked the graph) — that is what exhausted host memory/disk during
-# the 2026-09-20 incident (see BUGS.md). This script always `build`s ONLY
+# the 2026-09-20 incident. This script always `build`s ONLY
 # the named services, then recreates with --no-deps --no-build so `up`
 # cannot pull in anything else.
 #
 # Why prune is mandatory here: each backend image build leaves ~4 GB of
 # build cache behind, and this host runs near-full (~180 GB of 221 GB
 # baseline used even before a rebuild). Skipping the prune step after a
-# build is how the host hit 100% disk and crash-looped Postgres (BUGS.md,
+# build is how the host hit 100% disk and crash-looped Postgres (on
 # 2026-09-20 — "PANIC: could not write to file ... No space left on
 # device"). So prune runs after every successful build here, unconditionally
 # — it is not an optional cleanup step.

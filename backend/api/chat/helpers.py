@@ -19,7 +19,7 @@ from llm.summarizer.salience import bump_fact_saliences, compute_salience, score
 from models import Conversation, File, MemoryConflict, Message, User, UserGoal, UserMemory, UserInsight
 from services.demo import is_ephemeral_demo, pool_spend_usd
 
-from .model_resolve import _resolve_model, resolve_model_strict  # noqa: F401 — re-export (pre-split, HANDOFF Phase 3)
+from .model_resolve import _resolve_model, resolve_model_strict  # noqa: F401 — re-export (moved to model_resolve.py)
 from .schemas import ChatRequest
 
 logger = logging.getLogger("chat")
@@ -243,7 +243,7 @@ async def _build_stream_context(
     policy     = get_policy(query_type)  # already a copy — safe to mutate
     _act("classify", f"Query type: {query_type}" + (" · reference" if is_ref else ""))
 
-    # User-intent (Dim 3): tunes retrieval breadth here; tool eagerness downstream.
+    # User intent: tunes retrieval breadth here; tool eagerness downstream.
     intent = await classify_intent_hybrid(req.message, rid)
     _closing = intent == "closing"
     if intent == "exploration":
@@ -314,7 +314,7 @@ async def _build_stream_context(
                 _act("intent", f"Intent: closing — semantic reclassify (score={_cs:.2f})")
 
     history: list[dict] = []
-    history_msg_ids: list = []   # ids sent verbatim this turn → excluded from RAG (C3 echo dedup)
+    history_msg_ids: list = []   # ids sent verbatim this turn → excluded from RAG (echo dedup)
     if candidates:
         relevance_map: dict = {}
         if query_emb:
@@ -410,7 +410,7 @@ async def _build_stream_context(
     # Global file fallback: when nothing is explicitly attached, pull RAG *context*
     # from all ready files so globally-available content stays searchable — but do
     # NOT populate file_ids. file_ids drives file-*tool* injection + reasoning-model
-    # forcing, which must require a genuine attachment (BUGS.md: decouple file
+    # forcing, which must require a genuine attachment (this decouples file
     # context from file tools). These ids feed retrieval only; chunks land in
     # [FILE CONTEXT] without claiming the files are "attached" and without offering
     # the file toolset.

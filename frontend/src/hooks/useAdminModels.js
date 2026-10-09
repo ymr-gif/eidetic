@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 
 // Admin model catalog — GET/PATCH /api/admin/models, POST /api/admin/models/rescan
-// (backend/HANDOFF.md Phase 3: admin-only, require_role("admin")). Same fetch-on-open
+// (admin-only, guarded by require_role("admin") on the backend). Same fetch-on-open
 // pattern as useAdmin.js's invite list.
 export default function useAdminModels(token) {
   const [modelsOpen, setModelsOpen] = useState(false)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Q1 tool_calls gate probe — does llama.cpp emit OpenAI `tool_calls` from the
+# tool_calls gate probe — does llama.cpp emit OpenAI `tool_calls` from the
 # GGUF chat template? This is the highest-risk Home-Server Port gate and it is a
 # template/server property, not a GPU one, so it can be validated CPU-side.
 #
@@ -16,7 +16,7 @@
 #   MODEL      default mixtral                  (the --alias set in compose)
 #   WAIT       default 120                      (secs to wait for /health on boot)
 #
-# Exit codes: 0 = PASS (tool_calls emitted) · 1 = FAIL (prose only → BUGS Q-A2
+# Exit codes: 0 = PASS (tool_calls emitted) · 1 = FAIL (prose only → use the
 # prompt fallback) · 2 = ERROR (deps missing / server unreachable / bad response)
 
 set -uo pipefail

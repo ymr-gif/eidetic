@@ -54,7 +54,7 @@ async def retrieve(
     debug:           bool  = False,
     exclude_message_ids: list | None = None,
 ) -> list[dict] | tuple[list[dict], list[dict]]:
-    # C3 echo dedup: drop message-embeddings for messages already in the raw
+    # Echo dedup: drop message-embeddings for messages already in the raw
     # history window sent verbatim this turn (structural — the previous exchange
     # would otherwise re-surface at ~1.00 sim and get re-answered). Empty/None →
     # no-op. Cross-conversation retrieval (retrieve_global) is untouched.

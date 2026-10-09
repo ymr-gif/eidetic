@@ -126,7 +126,7 @@ async def lifespan(app: FastAPI):
     logger.info("[shutdown] complete")
 
 
-app = FastAPI(title="NIM LLM Router", lifespan=lifespan)
+app = FastAPI(title="Eidetic", lifespan=lifespan)
 
 app.include_router(chat_router)
 app.include_router(compat_router)

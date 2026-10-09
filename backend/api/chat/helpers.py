@@ -19,7 +19,7 @@ from llm.summarizer.salience import bump_fact_saliences, compute_salience, score
 from models import Conversation, File, MemoryConflict, Message, User, UserGoal, UserMemory, UserInsight
 from services.demo import is_ephemeral_demo, pool_spend_usd
 
-from .model_resolve import _resolve_model, resolve_model_strict  # noqa: F401 — re-export (moved to model_resolve.py)
+from .model_resolve import _resolve_model, resolve_model_strict  # noqa: F401 — re-export (defined in model_resolve.py)
 from .schemas import ChatRequest
 
 logger = logging.getLogger("chat")

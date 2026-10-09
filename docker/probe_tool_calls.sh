@@ -16,8 +16,8 @@
 #   MODEL      default mixtral                  (the --alias set in compose)
 #   WAIT       default 120                      (secs to wait for /health on boot)
 #
-# Exit codes: 0 = PASS (tool_calls emitted) · 1 = FAIL (prose only → use the
-# prompt fallback) · 2 = ERROR (deps missing / server unreachable / bad response)
+# Exit codes: 0 = PASS (tool_calls emitted) · 1 = FAIL (prose only, no
+# tool_calls) · 2 = ERROR (deps missing / server unreachable / bad response)
 
 set -uo pipefail
 

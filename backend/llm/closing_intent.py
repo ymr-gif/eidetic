@@ -95,7 +95,7 @@ CLOSING_THRESHOLD = 0.60
 
 # Token band tier-2 is trusted in. Below _MIN the cosine is noisy (short utterances) → leave those
 # to the lexicon / 8B; ≤2-word turns skip the embed anyway so they never reach here. Above _MAX a
-# pure closing is unlikely and the veto handles trailing requests. Bounds set from D2 measurement.
+# pure closing is unlikely and the veto handles trailing requests. Bounds set from measurement.
 _TIER2_MIN_TOKENS = 3
 _TIER2_MAX_TOKENS = 18
 

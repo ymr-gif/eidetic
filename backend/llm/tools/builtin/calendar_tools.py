@@ -21,7 +21,7 @@ _CALENDAR_RULES = (
 
 
 def _cal_full_gate(ctx: ToolContext) -> bool:
-    # Capability AND session intent latch (Q3 Task B generalization). Connector active
+    # Capability AND session intent latch. Connector active
     # is necessary but not sufficient: the six calendar schemas (+ _CALENDAR_RULES) only
     # enter context once genuine calendar intent has latched the session, so the model
     # can't fire calendar_list_events / calendar_search_events on a greeting. The latch

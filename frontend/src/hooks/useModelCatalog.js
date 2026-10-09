@@ -13,7 +13,7 @@ const FOCUS_REFRESH_MIN_MS = 5 * 60 * 1000
 const ROLE_ORDER = ['llama', 'coder', 'reasoning']
 
 // Live model catalog — GET /api/models (role models + every other currently-available catalog
-// model, per backend/HANDOFF.md Phase 3). Source of truth for pill/palette/lock labels and for
+// model). Source of truth for pill/palette/lock labels and for
 // role->id / id->role mapping; falls back to the static MODEL_KEYS/MODEL_LABELS map
 // (chatConstants.js) before the first fetch resolves, or for an id the catalog no longer lists
 // (e.g. a retired id on an old persisted message).

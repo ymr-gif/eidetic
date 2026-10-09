@@ -333,7 +333,7 @@ async def _process(db, file_id: uuid.UUID, storage_path: str, mime_type: str) ->
 
     if not text.strip():
         if is_image:
-            # No-text image: ready, 0 chunks — never error (Q-C6)
+            # No-text image: ready, 0 chunks — never error
             row.upload_status = "ready"
             row.chunk_total = 0
             row.chunk_embedded = 0

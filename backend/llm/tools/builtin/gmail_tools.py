@@ -19,7 +19,7 @@ _GMAIL_RULES = (
 
 
 def _gmail_full_gate(ctx: ToolContext) -> bool:
-    # Capability AND session intent latch (Q3 Task B generalization). Connector active
+    # Capability AND session intent latch. Connector active
     # is necessary but not sufficient: the three Gmail schemas (+ _GMAIL_RULES) only
     # enter context once genuine email intent has latched the session, so the model
     # can't fire gmail_list_messages / gmail_search_messages on a greeting. The latch

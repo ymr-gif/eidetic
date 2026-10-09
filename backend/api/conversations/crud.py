@@ -54,7 +54,7 @@ async def list_conversations(
             "memory_enabled": True,
             "system_prompt":  c.system_prompt  or "",
             "locked_model":   c.locked_model   or "",
-            # Phase 3 (live model catalog): whether the stored locked_model
+            # Live model catalog: whether the stored locked_model
             # still resolves to a routable model right now — a catalog pick
             # the admin later disabled/delisted resolves to None here even
             # though the DB value is untouched (stream falls back to Auto).
@@ -138,7 +138,7 @@ async def patch_conversation(
     if "locked_model" in updated:
         # Raises HTTP 422 model_unavailable if body.locked_model is non-empty
         # and doesn't resolve to a routable model (role name/id or an
-        # available live-catalog id, Phase 3).
+        # available live-catalog id).
         apply_locked_model(conv, body.locked_model)
 
     await db.commit()

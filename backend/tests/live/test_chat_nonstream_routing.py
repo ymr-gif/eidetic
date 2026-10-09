@@ -35,7 +35,7 @@ def test_nonstream_basic(client, user_headers):
 
 
 def test_model_override_respected(client, user_headers):
-    # Live model ids churn under NVIDIA's catalog (HANDOFF Phase 3) — use the
+    # Live model ids churn under NVIDIA's catalog — use the
     # currently-configured coder role rather than a hardcoded id, and the
     # keyword router's OTHER role (llama) for the prompt so this actually
     # exercises the override instead of them coincidentally agreeing.

@@ -68,7 +68,7 @@ class TestDemoHalving:
         assert resolve_bucket("z-ai/glm-5.3-flash", "demo_abc123") == ("catalog", 10, 60)
 
     def test_demo_account_role_bucket_is_unaffected(self, monkeypatch):
-        # Halving only applies to the shared catalog bucket, per spec — role
+        # Halving only applies to the shared catalog bucket — role
         # buckets (llama/coder/reasoning) are untouched by the demo flag.
         monkeypatch.setattr(config, "DEMO_EPHEMERAL_ENABLED", True, raising=False)
         assert resolve_bucket(LLAMA, "demo_abc123") == ("llama", 15, 60)

@@ -79,7 +79,7 @@ def test_inject_web_search_on_flag_regardless_of_wording():
 
 
 def test_inject_drive_all_tools_when_active_and_latched():
-    # Q3 Task B: drive_active alone is not enough — session must also be latched.
+    # drive_active alone is not enough — session must also be latched.
     expected = {"drive_list_files", "drive_read_file", "drive_search"}
     assert _inject(message="hello there", db=_DB, user_id=1, drive_active=True, drive_latched=True) == expected
     assert _inject(message="hello there", db=_DB, user_id=1, drive_active=True, drive_latched=False) == set()

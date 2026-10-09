@@ -78,15 +78,15 @@ async def chat_completions(
     current_user: User         = Depends(get_current_user),
     db:           AsyncSession = Depends(get_db),
 ):
-    # Same cost-cap pre-flight as /chat (49cb6ea) — this endpoint was uncovered (QUEUE Q4).
+    # Same cost-cap pre-flight as /chat (49cb6ea) — this endpoint was uncovered.
     await _check_cost_cap(current_user, db)
-    # Phase 3 (live model catalog): refresh the in-process snapshot before this
-    # endpoint's own _resolve_model runs (it resolves models, per HANDOFF Phase 3).
+    # Live model catalog: refresh the in-process snapshot before this
+    # endpoint's own _resolve_model runs.
     await catalog_cache.ensure_fresh()
     model      = _resolve_model(body.model)
     messages   = [{"role": m.role, "content": m.content} for m in body.messages]
     # OpenAI-compat is a real chat turn — same reasoning-toggle extras as /chat
-    # (Phase 2c): applied unconditionally, including to the reasoning role.
+    # (applied unconditionally, including to the reasoning role).
     params     = apply_request_extras(model, _build_params(body))
     request_id = str(uuid.uuid4())
     cid        = _completion_id()

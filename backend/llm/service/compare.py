@@ -45,7 +45,7 @@ async def compare_streams(
     async def _run(model: str) -> None:
         try:
             msgs = common_msgs + [{"role": "user", "content": message}]
-            # Same reasoning-toggle extras as any other chat turn (Phase 2c):
+            # Same reasoning-toggle extras as any other chat turn:
             # applied to every model in the comparison, including reasoning.
             _params = apply_request_extras(model, model_params)
             async for chunk in call_stream(model, msgs, request_id, _params):

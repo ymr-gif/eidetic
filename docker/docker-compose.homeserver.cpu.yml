@@ -1,6 +1,6 @@
 # CPU validation override for the home-server serving stack.
 #
-# Purpose: retire the highest-risk Q1 gate — "do `tool_calls` work with the
+# Purpose: retire the highest-risk Home-Server Port gate — "do `tool_calls` work with the
 # Mixtral GGUF chat template?" — WITHOUT the 2×P40 box. The chat-template /
 # OpenAI tool-call behaviour is a property of llama.cpp + the model template,
 # not the GPU, so a small Mistral-family GGUF on CPU validates it faithfully.
@@ -18,7 +18,7 @@
 #   4. Probe tool_calls (no GPU needed):  ./probe_tool_calls.sh
 #      (CPU warmup is slow — ~5 min for a 7B Q4 on this box; use WAIT=360.)
 #      → exit 0 / non-null tool_calls array = gate PASSED (server emits OpenAI tool calls).
-#      → exit 1 / prose-only = gate FAILED → prompt-based tool fallback (BUGS Q-A2).
+#      → exit 1 / prose-only = gate FAILED → prompt-based tool fallback.
 #   5. Repoint the API at it to run the real agent loop end-to-end:
 #      NIM_URL=http://llamacpp:8080/v1/chat/completions
 #

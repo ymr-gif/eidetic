@@ -50,7 +50,7 @@ services:
     # container that outlived the change, surfacing as "nim/embedding error"
     # with an empty detail — looks exactly like a NIM outage, isn't one. Fixed
     # public IPs never drift. Container-name resolution (postgres/redis/neo4j
-    # via Docker's embedded 127.0.0.11) is untouched by this — see docker/CLAUDE.md.
+    # via Docker's embedded 127.0.0.11) is untouched by this.
     dns:
       - 1.1.1.1
       - 8.8.8.8
@@ -267,7 +267,7 @@ services:
       - backend
 
   # Dev-only SMTP catcher — verifies the digest/notification email path without a
-  # real provider (QUEUE Q5). SMTP on mailhog:1025 (plain — use SMTP_STARTTLS=false),
+  # real provider. SMTP on mailhog:1025 (plain — use SMTP_STARTTLS=false),
   # UI on 127.0.0.1:8025 (loopback only: captured mail is unauthenticated).
   mailhog:
     image: mailhog/mailhog:v1.0.1
@@ -284,7 +284,7 @@ services:
   # guarantees each job runs exactly once (reserved until ack/complete).
   # ──────────────────────────────────────────────────────────────────────────
 
-  # ── Home-server model serving (Q1 — llama.cpp/GGUF) ──────────────────────────
+  # ── Home-server model serving (llama.cpp/GGUF) ───────────────────────────────
   # Opt-in only: `docker compose --profile homeserver up -d`. NOT started by the
   # default stack, so the live NIM backend is untouched until you repoint NIM_URL.
   # Drop GGUF weights into backend/storage/models/ first. On the home server the

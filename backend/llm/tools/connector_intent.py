@@ -178,7 +178,7 @@ INTENT_THRESHOLDS: dict[str, float] = {
 # 0.30), gmail unaffected (own threshold 0.44 > floor). The 0.695 cross-talk case above is a genuine
 # anchor-vocabulary-overlap problem (shared nouns like "invoice") that NO floor value can fix without
 # gutting recall — it needs a margin-based single-winner rule or disjoint anchor vocabulary, both out
-# of scope for a threshold-only re-tune; flagged in BUGS.md as a residual.
+# of scope for a threshold-only re-tune; left as a known residual.
 FLOOR_THRESHOLD = 0.30
 
 _anchors: dict[str, list[list[float]] | None] = {}

@@ -40,8 +40,7 @@ jobs:
       # So the AUTHORITATIVE nightly gate is smoke.sh (health -> login -> upload ->
       # chat stream -> metrics), which exercises the real deployment end to end. The
       # pytest live tier still runs for visibility but is NON-BLOCKING until the harness
-      # is adapted for an invite-gated stack — see QUEUE.md "Live-suite adaptation for
-      # the invite-gated public deployment" for the plan + options.
+      # is adapted for an invite-gated stack.
       - name: Post-deploy smoke (authoritative gate)
         if: env.VERIFY_BASE_URL != ''
         run: bash scripts/smoke.sh "$VERIFY_BASE_URL"

@@ -33,7 +33,7 @@ class ToolContext:
     # resolved once before the injection loop (async I/O lives there, not here)
     drive_active: bool = False
     drive_cache_active: bool = False
-    # Per-connector intent latch (Q3 Task B + calendar/gmail generalization): True
+    # Per-connector intent latch (drive, calendar, gmail): True
     # once genuine intent for that connector has appeared in the session. Each gate
     # requires {connector}_active AND {connector}_latched, so the schema stays out of
     # context until intent fires (then sticky per session). Resolved in generate_stream.

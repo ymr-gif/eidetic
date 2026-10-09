@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Orchestrator for the rich full-feature run (plan: happy-crafting-catmull).
+# Orchestrator for the rich full-feature run.
 # Phases: B existing tiers → C rich_exercise → D rich_full gap-filler.
 # Preflight (phase A) and report/RUNLOG (phase E) are done by the operator around this script.
 #

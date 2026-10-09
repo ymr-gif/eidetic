@@ -57,7 +57,7 @@ def _poll(fn, ok, timeout=90, interval=2.0):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# V-A3 Graph extraction after chat — Neo4j entities grow
+# Graph extraction after chat — Neo4j entities grow
 # ══════════════════════════════════════════════════════════════════════════════
 def test_graph_extraction_after_chat(client, sse_post, fresh):
     before = client.get("/graph/stats", headers=fresh).json()
@@ -73,7 +73,7 @@ def test_graph_extraction_after_chat(client, sse_post, fresh):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# V-A6 Auto-title — conversation gets a real title after the 2nd message
+# Auto-title — conversation gets a real title after the 2nd message
 # ══════════════════════════════════════════════════════════════════════════════
 def test_auto_title_after_second_message(client, sse_post, fresh):
     first_msg = "Let's discuss the quarterly revenue forecast for the hardware division."
@@ -96,7 +96,7 @@ def test_auto_title_after_second_message(client, sse_post, fresh):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# V-A2 Memory compaction → UserMemoryVersion snapshot
+# Memory compaction → UserMemoryVersion snapshot
 # ══════════════════════════════════════════════════════════════════════════════
 def test_compaction_creates_version(client, fresh):
     # seed a memory sheet worth compacting
@@ -119,7 +119,7 @@ def test_compaction_creates_version(client, fresh):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# V-A1 Insight generation — webhook → process_webhook_job → UserInsight
+# Insight generation — webhook → process_webhook_job → UserInsight
 # ══════════════════════════════════════════════════════════════════════════════
 def test_insight_generated_from_webhook(client, fresh):
     token = client.post("/auth/me/webhook-token", headers=fresh).json()["webhook_token"]

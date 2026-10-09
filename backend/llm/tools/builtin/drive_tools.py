@@ -57,7 +57,7 @@ _POST_LISTING = (
 
 
 def _drive_gate(ctx: ToolContext) -> bool:
-    # Capability AND intent latch (Q3 Task B). Connector active is necessary but
+    # Capability AND intent latch. Connector active is necessary but
     # not sufficient: the Drive schemas (and _DRIVE_RULES, which rides on this same
     # injection) only enter context once genuine Drive intent has latched the
     # session. Pre-latch the schema is absent, so the model *cannot* spuriously

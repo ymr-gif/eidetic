@@ -40,8 +40,8 @@ _REFRESH_GUARD_SECONDS = 15
 # Definitive-down statuses never count as available regardless of enabled.
 _DEFINITIVE_DOWN = {"not_found", "gone", "delisted"}
 # Transient-failure statuses still count as available for ONE probe cycle
-# (fail_count<=1) — "tolerate 1 failed probe" (spec). Two in a row flips it.
-# HANDOFF Phase 7: tolerance ALSO requires last_live_at to be set — a model
+# (fail_count<=1) — "tolerate 1 failed probe". Two in a row flips it.
+# Tolerance ALSO requires last_live_at to be set — a model
 # that has never once answered a probe must never be "available" just
 # because it hasn't failed twice yet. "Tolerate 1 failed probe" means a
 # model that WAS live and blipped, not one that never worked.

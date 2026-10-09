@@ -97,7 +97,7 @@ class TestApplyRequestExtras:
         assert apply_request_extras(UNKNOWN, params) == {"max_tokens": 4}
 
     def test_reasoning_role_gets_extras_too_no_thinking_on_path(self):
-        # Phase 2c: the reasoning model's own chat turns used to keep thinking
+        # The reasoning model's own chat turns used to keep thinking
         # ON (fast=False). That path is gone — every call for a listed model
         # gets its extras, including the reasoning role, because thinking-on
         # intermittently leaked chain-of-thought into `content` live.
@@ -199,7 +199,7 @@ async def test_nim_call_sends_no_extras_for_unknown_model(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_nim_call_sends_extras_for_reasoning_role_too(monkeypatch):
-    # Phase 2c end-to-end lock: a "real chat turn" on the reasoning model still
+    # End-to-end lock: a "real chat turn" on the reasoning model still
     # gets its thinking-off field in the outgoing body — no caller-side branch
     # skips it anymore.
     fake = _FakeClient()
@@ -214,7 +214,7 @@ async def test_nim_call_sends_extras_for_reasoning_role_too(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_nim_call_floors_gpt_oss_20b_low_max_tokens_end_to_end(monkeypatch):
-    # Phase 2c end-to-end lock: gpt-oss-20b at reasoning_effort=low still
+    # End-to-end lock: gpt-oss-20b at reasoning_effort=low still
     # starved live at max_tokens=60 — the production floor must actually reach
     # the outgoing body, not just the helper's return value.
     fake = _FakeClient()

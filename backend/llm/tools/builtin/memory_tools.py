@@ -26,7 +26,7 @@ async def _exec_ask_user(args: dict, ctx: ToolContext) -> str:
 # current message. Capability-only (db + is_reasoning) over-fired: on any trivial turn
 # that happened to land on the 70B, the tool-eager model called write_memory to store a
 # junk "fact" (e.g. "user is saying hello") and — because the confirm sentinel pauses the
-# loop — left an EMPTY reply (BUGS.md, conv a863dcbf). The gate now also requires
+# loop — left an EMPTY reply. The gate now also requires
 # `_needs_memory_tool(message)` (the same deterministic "remember"/"memorize" keyword
 # signal that routes memory turns to the 70B), so greetings/questions/coding never inject
 # write_memory. Embedding-cosine memory-intent was measured too weak to separate (greetings

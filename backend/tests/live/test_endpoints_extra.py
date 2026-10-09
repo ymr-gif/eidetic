@@ -51,7 +51,7 @@ def _new_conversation(sse_post, headers, msg="Say hi in one word."):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# V-C1 Prompt templates — full CRUD + apply
+# Prompt templates — full CRUD + apply
 # ══════════════════════════════════════════════════════════════════════════════
 def test_templates_crud_and_apply(client, sse_post, throwaway):
     h = throwaway["headers"]
@@ -82,7 +82,7 @@ def test_templates_crud_and_apply(client, sse_post, throwaway):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# V-C2 Export — read-only; test on the seeded user (has data)
+# Export — read-only; test on the seeded user (has data)
 # ══════════════════════════════════════════════════════════════════════════════
 def test_export_full_zip(client, user_headers):
     with client.stream("GET", "/export/full", headers=user_headers, timeout=60) as r:
@@ -94,7 +94,7 @@ def test_export_full_zip(client, user_headers):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# V-C3 Unified search — shape + finds freshly written memory
+# Unified search — shape + finds freshly written memory
 # ══════════════════════════════════════════════════════════════════════════════
 def test_unified_search_shape(client, user_headers):
     r = client.get("/search", headers=user_headers, params={"q": "project"})
@@ -120,7 +120,7 @@ def test_unified_search_finds_memory(client, throwaway):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# V-C4 Conversation ops — patch / export / search / delete + file attach-detach
+# Conversation ops — patch / export / search / delete + file attach-detach
 # ══════════════════════════════════════════════════════════════════════════════
 def test_conversation_patch_export_search_delete(client, sse_post, throwaway):
     h = throwaway["headers"]
@@ -159,7 +159,7 @@ def test_conversation_file_attach_detach(client, sse_post, throwaway):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# V-C6 Invite gate — admin issues, register consumes
+# Invite gate — admin issues, register consumes
 # ══════════════════════════════════════════════════════════════════════════════
 def test_invite_issue_and_consume(client, admin_headers):
     issued = client.post("/auth/invite", headers=admin_headers)
@@ -184,7 +184,7 @@ def test_invite_issue_and_consume(client, admin_headers):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# V-D5 Memory conflicts — write contradictions, scan, resolve
+# Memory conflicts — write contradictions, scan, resolve
 # ══════════════════════════════════════════════════════════════════════════════
 def test_memory_conflict_scan_resolve(client, throwaway):
     h = throwaway["headers"]
@@ -203,7 +203,7 @@ def test_memory_conflict_scan_resolve(client, throwaway):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# V-E5 Re-embed — admin trigger accepted
+# Re-embed — admin trigger accepted
 # ══════════════════════════════════════════════════════════════════════════════
 def test_re_embed_accepted(client, admin_headers):
     r = client.post("/admin/re-embed", headers=admin_headers)
@@ -211,7 +211,7 @@ def test_re_embed_accepted(client, admin_headers):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# V-B1 Scheduled prompts — create → run → run recorded → delete
+# Scheduled prompts — create → run → run recorded → delete
 # ══════════════════════════════════════════════════════════════════════════════
 def test_scheduled_prompt_create_run_delete(client, throwaway):
     h = throwaway["headers"]

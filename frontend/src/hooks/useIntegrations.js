@@ -11,15 +11,15 @@ const CONNECTOR_LABELS = {
 const CONNECTOR_TYPES = ['google_drive', 'google_calendar', 'gmail', 'notion', 'github']
 
 // Which connector types get an OAuth button is now a RUNTIME backend setting
-// (config.ENABLED_CONNECTOR_TYPES, served by GET /api/integrations/available — QUEUE
-// Q0.6, 2026-07-23), not a source constant here. A Vite import.meta.env var would be
+// (config.ENABLED_CONNECTOR_TYPES, served by GET /api/integrations/available, since
+// 2026-07-23), not a source constant here. A Vite import.meta.env var would be
 // inlined at BUILD time and couldn't flip live via /admin/env/reload, so this fetches
 // on mount instead. Initial state stays [] so a failed/slow fetch degrades to
 // *stubbed* (every connector shows "Soon"), never to *exposed*.
 //
 // Google connectors were re-enabled 2026-06-29 for connector-intent latch data collection, then
-// RE-STUBBED 2026-07-02 once enough latch_score data was collected and the tuning closed (fork-B:
-// floor 0.70 + clarify fallback; see plans/connector-latch-data-plan.md → Phase 4 DECIDED). The
+// RE-STUBBED 2026-07-02 once enough latch_score data was collected and the tuning closed (decision:
+// floor 0.70 + clarify fallback). The
 // backend connector code + latch stay intact — an empty list just removes the OAuth button so NO
 // NEW users can connect. It does NOT deactivate connectors already OAuth'd: admin's ExternalSource
 // rows from the data-collection window stay `active` in the DB, so the backend still sees

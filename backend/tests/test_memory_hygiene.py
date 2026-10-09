@@ -8,7 +8,7 @@ Covers:
 import pytest
 
 
-# ── Rotation threshold condition (S4) ────────────────────────────────────────
+# ── Rotation threshold condition ─────────────────────────────────────────────
 
 def _should_rotate(msgs: int, tok: int, days: int) -> bool:
     return msgs > 80 or tok > 120000 or days > 3
@@ -41,7 +41,7 @@ def test_rotation_at_boundary():
     assert _should_rotate(80, 120000, 4) is True
 
 
-# ── Dedup merge logic (T3) ────────────────────────────────────────────────────
+# ── Dedup merge logic ─────────────────────────────────────────────────────────
 
 _NORM_PAIRS = [
     ("Intel Xeon E5 2696 V4", "intel xeon e5 2696 v4"),

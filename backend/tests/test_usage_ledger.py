@@ -31,7 +31,7 @@ def test_tokens_and_cost_estimates_without_usage():
 
 
 def test_tokens_and_cost_unknown_model_uses_default_rate_not_zero():
-    # HANDOFF Phase 3 (live model catalog): tokens_and_cost() now goes through
+    # Live model catalog: tokens_and_cost() now goes through
     # llm.catalog.pricing.get_pricing(), which bills an unpriced/unknown model
     # at DEFAULT_MODEL_PRICE_IN/OUT rather than $0 — the old $0 behavior let a
     # demo account's per-account/global cost caps never bind on a new model.

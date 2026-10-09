@@ -8,7 +8,7 @@ export const SANS = "'IBM Plex Sans', -apple-system, 'Segoe UI', system-ui, sans
 export const DISP = MONO
 export const TERM = SANS
 
-// Palette — see frontend/CLAUDE.md token table.
+// Palette.
 export const AMBER = '#f2a33c'   // THE accent: primary actions, active states, selection, focus
 export const NOMINAL = '#55d67c' // success / grounding-high / memory confirm
 export const ALERT = '#e5534b'   // errors, delete, breaker-open

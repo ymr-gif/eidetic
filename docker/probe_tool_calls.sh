@@ -105,7 +105,7 @@ else
   red "❌ FAIL — no tool_calls; model answered as prose."
   echo "   content: $(echo "$CONTENT" | head -c 300)"
   echo
-  dim "Per BUGS Q-A2: fall back to prompt-based tool calling."
+  dim "Fall back to prompt-based tool calling."
   dim "Also confirm the server was started with --jinja (required for native tool templates)."
   exit 1
 fi

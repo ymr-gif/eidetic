@@ -1,4 +1,4 @@
-"""Stream wall-clock + token bounds (BUGS.md "No total-stream-duration cap").
+"""Stream wall-clock + token bounds.
 
 Unit tier — no live NIM, no DB, no Redis. Covers the three new bounds:
   - STREAM_TOTAL_TIMEOUT  — one call_stream connection (llm/nim.py)

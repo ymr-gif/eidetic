@@ -1,10 +1,10 @@
-"""llm/catalog/cache.py — in-process snapshot refresh (HANDOFF Phase 3 + 7).
+"""llm/catalog/cache.py — in-process snapshot refresh.
 
 Unit tier — Redis and the DB are both faked (AsyncMock-style stand-ins), no
 real network/DB I/O. Covers: the 15s guard, version-unchanged short-circuit,
 version-changed Redis-hash reload, Redis-down DB fallback, USE_REDIS=false
 straight-to-DB path, and the availability predicate (enabled AND live, or
-enabled with <=1 recent failed probe AND last_live_at set — HANDOFF Phase 7:
+enabled with <=1 recent failed probe AND last_live_at set:
 a model that has never once answered a probe is never "available" just
 because it hasn't failed twice yet).
 """
@@ -195,7 +195,7 @@ class TestAvailability:
         assert catalog_cache.is_available(ENTRY["id"]) is False
 
     def test_transient_status_never_live_is_not_available(self):
-        """HANDOFF Phase 7 repro: enabled, status=timeout, fail_count=1, but
+        """Repro: enabled, status=timeout, fail_count=1, but
         last_live_at is null — this model has NEVER answered a probe. Must
         not be tolerated as available just because it hasn't failed twice."""
         self._seed({

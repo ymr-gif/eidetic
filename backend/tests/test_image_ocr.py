@@ -1,4 +1,4 @@
-"""Unit tests for image OCR (Q2 #19) — run with: pytest backend/tests/test_image_ocr.py -v"""
+"""Unit tests for image OCR — run with: pytest backend/tests/test_image_ocr.py -v"""
 import os
 import sys
 import pytest

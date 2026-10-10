@@ -29,7 +29,7 @@ async def compare_streams(
 ):
     """Run all models concurrently; yield tagged token events.
 
-    `models` (Phase 3, live model catalog) overrides the default 3-role
+    `models` (live model catalog) overrides the default 3-role
     comparison with an explicit id list (already strict-resolved by the
     caller — api/chat/stream.py). The first event is always `compare_start`
     naming exactly which models + labels are being compared, so the frontend

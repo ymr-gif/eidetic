@@ -1,4 +1,4 @@
-"""llm/catalog/scanner.py — the live NIM model catalog scan (HANDOFF Phase 3).
+"""llm/catalog/scanner.py — the live NIM model catalog scan.
 
 Unit tier — no real DB/Redis/NIM. `llm_client.client` is a fake httpx-shaped
 stand-in (mirrors the `_FakeClient` pattern in tests/test_model_extras.py);
@@ -275,8 +275,8 @@ class TestRunScan:
 
     @pytest.mark.asyncio
     async def test_db_session_only_opened_after_all_network_calls_complete(self, monkeypatch):
-        """Never hold a DB session open across the network probes (HANDOFF Phase 3
-        rule) — assert AsyncSessionLocal isn't touched until every probe/list call
+        """Never hold a DB session open across the network probes
+        — assert AsyncSessionLocal isn't touched until every probe/list call
         has already returned."""
         fake = _FakeScanClient(["a/model", "b/model"])
         monkeypatch.setattr(llm_client, "client", fake)

@@ -19,7 +19,7 @@ from llm.tools.builtin.drive_tools import _drive_gate
 
 
 class TestCapabilityGating:
-    """Drive tools are gated on capability AND the session intent latch (Q3 Task B):
+    """Drive tools are gated on capability AND the session intent latch:
     the connector must be active AND the session must have latched on Drive intent.
     The latch is resolved in generate_stream from an embedding cosine; the gate
     itself just reads the resolved flags, independent of message wording."""

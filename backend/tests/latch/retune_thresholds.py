@@ -26,8 +26,8 @@ What it does:
 
 Caching: a JSON file (default under the OS temp dir — never the repo) keyed by exact text ->
 embedding vector. Delete it or pass --force-embed to re-embed everything (e.g. after an embedder
-change); otherwise this script never re-embeds a text it has already cached — see the Phase 6
-HANDOFF budget note (~160 eval lines + ~90 anchor phrases, embedded once).
+change); otherwise this script never re-embeds a text it has already cached
+(~160 eval lines + ~90 anchor phrases, embedded once).
 """
 from __future__ import annotations
 

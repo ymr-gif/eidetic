@@ -1,15 +1,15 @@
-"""Reasoning-model request budget hotfix (HANDOFF.md Phase 2b/2c, 2026-09-20).
+"""Reasoning-model request budget hotfix (2026-09-20).
 
 Unit tier — no live NIM, no DB, no Redis. Covers:
   - extras_for(): per-model reasoning-toggle fields from config.MODEL_REQUEST_EXTRAS,
     {} for a model id not in the table (unknown ids / the homeserver alias must
     never get an unverified field)
-  - apply_request_extras(): ALWAYS merges the model's extras (Phase 2c dropped the
+  - apply_request_extras(): ALWAYS merges the model's extras (a later change dropped the
     old fast=False "thinking stays on" path — see below) and applies
     config.MODEL_MIN_MAX_TOKENS's per-model floor when an EXPLICITLY-set
     max_tokens falls below it; never mutates the caller's dict; an absent
     max_tokens already means uncapped and is left alone
-  - Phase 2c policy lock: the reasoning role's own chat turns now get the same
+  - Policy lock: the reasoning role's own chat turns now get the same
     extras as every other call (root found live that nemotron-3-super leaks
     chain-of-thought into `content` when thinking is left on) — there is no
     per-call "keep thinking on" branch left, so the helper takes no `fast` kwarg

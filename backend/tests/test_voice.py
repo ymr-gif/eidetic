@@ -1,4 +1,4 @@
-"""Unit tests for Voice STT (Phase 1a) — run with: pytest backend/tests/test_voice.py -v"""
+"""Unit tests for Voice STT — run with: pytest backend/tests/test_voice.py -v"""
 import os
 import sys
 import pytest

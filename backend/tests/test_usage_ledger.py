@@ -1,4 +1,4 @@
-"""Unit tests for the stateless-endpoint usage ledger (QUEUE Q4).
+"""Unit tests for the stateless-endpoint usage ledger.
 
 No DB/NIM — pure calc tests + a mocked-session ledger-row test.
 Run: pytest tests/test_usage_ledger.py -q

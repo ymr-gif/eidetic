@@ -1,4 +1,4 @@
-"""Admin model-catalog endpoints (HANDOFF Phase 3): GET/PATCH /admin/models,
+"""Admin model-catalog endpoints: GET/PATCH /admin/models,
 POST /admin/models/rescan. Unit tier — FastAPI TestClient with the DB session
 and auth dependency overridden (mirrors tests/test_notifications.py);
 llm.catalog.store / scanner / cache.publish are monkeypatched module
@@ -203,7 +203,7 @@ class TestPatchCatalogModel:
         assert row.request_extras == {"reasoning_effort": "low"}
 
     def test_enabling_a_never_live_model_is_409(self, monkeypatch):
-        """HANDOFF Phase 7 repro: status=timeout, fail_count=1, never live."""
+        """Repro: status=timeout, fail_count=1, never live."""
         row = _row(status="timeout", fail_count=1, enabled=False, last_live_at=None)
 
         async def _fake_get_row(db, model_id):

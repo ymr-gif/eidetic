@@ -65,7 +65,7 @@ def pytest_collection_modifyitems(config, items):
     skip_live = pytest.mark.skip(reason="live tier off (set RUN_LIVE_NIM=1 with VERIFY_BASE_URL reachable)")
     skip_no_pw = pytest.mark.skip(
         reason=f"live/optional tier needs seeded passwords — set {', '.join(missing_pw_vars)} "
-               f"(no default: the seeded accounts were rotated, see backend/CLAUDE.md)"
+               f"(no default: the seeded accounts were rotated)"
     ) if missing_pw_vars else None
     skip_unreach = pytest.mark.skip(reason=f"stack not reachable at {BASE_URL}/health")
 

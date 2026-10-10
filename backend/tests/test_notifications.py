@@ -1,4 +1,4 @@
-"""Unit tests for Phase 3c Notifications — prefs CRUD, dispatch, rate limit, VAPID skip.
+"""Unit tests for Notifications — prefs CRUD, dispatch, rate limit, VAPID skip.
 
 Run: pytest backend/tests/test_notifications.py -v
 """

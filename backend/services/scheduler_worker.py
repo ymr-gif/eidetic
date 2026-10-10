@@ -46,7 +46,7 @@ async def execute_scheduled_prompt(
         try:
             model = s.model_override or MODELS["llama"]
             # Scheduled prompts are a real chat turn (saved as a File) — same
-            # reasoning-toggle extras as any other chat turn (Phase 2c): applied
+            # reasoning-toggle extras as any other chat turn: applied
             # unconditionally, including to the reasoning role.
             result = await nim_call(
                 model    = model,
@@ -269,8 +269,8 @@ async def run_demo_reap() -> None:
 
 
 async def run_catalog_scan(trigger: str = "cron") -> None:
-    """Enqueue (or run inline if no ARQ pool) a live model catalog scan
-    (HANDOFF Phase 3). No-op in homeserver mode — checked here too so a
+    """Enqueue (or run inline if no ARQ pool) a live model catalog scan.
+    No-op in homeserver mode — checked here too so a
     missing-scan-meta startup kick doesn't fire needlessly; run_scan() itself
     also no-ops, this just avoids an idle enqueue."""
     if config.LLM_BACKEND == "homeserver":

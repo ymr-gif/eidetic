@@ -19,8 +19,8 @@ from llm.tools.builtin.gmail_tools import _gmail_full_gate
 
 
 class TestCapabilityGating:
-    """Gmail tools are gated on capability AND the session intent latch (Q3 Task B
-    generalization): connector active AND the session latched on email intent. The
+    """Gmail tools are gated on capability AND the session intent latch:
+    connector active AND the session latched on email intent. The
     latch is resolved in generate_stream from an embedding cosine; the gate reads flags."""
 
     def test_injected_when_connector_active_and_latched(self):

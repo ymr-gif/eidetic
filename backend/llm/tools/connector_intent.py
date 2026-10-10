@@ -1,4 +1,4 @@
-"""Per-connector intent latch signals (Q3 Task B + calendar/gmail generalization).
+"""Per-connector intent latch signals.
 
 Generalizes the Drive intent latch to every capability-gated OAuth connector
 (drive, calendar, gmail). Each connector's tool schemas are withheld from the
@@ -29,7 +29,7 @@ noticeably LOWER/TIGHTER than the retired `nv-embedqa-e5-v5` (1024-d) — genuin
 "recalibrate the old numbers" pass would have left every connector permanently unreachable (e5's
 floor alone exceeds nemotron's strongest drive positive). On the eventual bge-large-en-v1.5
 (homeserver) swap, re-run `tests/{connector}_intent_eval.jsonl` and re-tune again — do not port
-these nemotron numbers either. See backend/CLAUDE.md → LLM_BACKEND invariant.
+these nemotron numbers either.
 
 Cross-connector talk: connector requests share a "check my X / find my Y" possessive
 structure, so e.g. a gmail request scores high on the drive & calendar centroids too
@@ -45,7 +45,7 @@ overlap — thresholds are precision-biased ("fail toward fewer tools"). The glo
 `FLOOR_THRESHOLD` (see its own comment for the current value) rejects weak winners that
 only "won" because every connector scored low — a confident wrong latch is worse than
 a humble abstention. The latch is sticky 1h, so a false latch poisons that one connector
-for the session until TTL. See BUGS.md residual.
+for the session until TTL.
 """
 
 from __future__ import annotations

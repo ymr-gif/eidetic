@@ -1,4 +1,4 @@
-"""Unit tests for scanned-PDF OCR fallback (Q-C5) — run with: pytest backend/tests/test_pdf_ocr.py -v
+"""Unit tests for scanned-PDF OCR fallback — run with: pytest backend/tests/test_pdf_ocr.py -v
 
 Covers:
   - Gate off + empty-text PDF → "", no OCR call

@@ -1,4 +1,4 @@
-"""Live NIM model catalog scanner (HANDOFF Phase 3).
+"""Live NIM model catalog scanner.
 
 `run_scan()`:
   1. GET /v1/models (same auth-header logic as llm/nim.py, but a raw httpx call

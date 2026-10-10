@@ -1,4 +1,4 @@
-"""Model-id resolution (HANDOFF Phase 3, live model catalog).
+"""Model-id resolution (live model catalog).
 
 Unit tier — no DB/Redis/NIM. `llm.catalog.cache` is exercised as a plain
 in-process dict via its own `_reset_for_tests()` + `_replace_snapshot()`-style
@@ -89,7 +89,7 @@ class TestResolveModel:
         assert _resolve_model(CATALOG_ID) is None
 
     def test_never_live_model_never_resolves_even_with_one_failed_probe(self):
-        """HANDOFF Phase 7: a model that has NEVER answered a probe live must
+        """A model that has NEVER answered a probe live must
         not resolve just because fail_count hasn't hit 2 yet — repro was
         nvidia/nemotron-3-ultra-550b-a55b, status=timeout, fail_count=1."""
         _seed(CATALOG_ID, enabled=True, status="timeout", fail_count=1, last_live_at=None)

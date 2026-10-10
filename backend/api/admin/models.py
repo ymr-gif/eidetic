@@ -1,9 +1,9 @@
-"""Admin model-catalog curation (HANDOFF Phase 3): review scan results, enable/
+"""Admin model-catalog curation: review scan results, enable/
 disable + price/context-window override individual models, trigger a manual
 Rescan. Same require_role("admin") + _audit() pattern as the rest of
 api/admin/*.py.
 
-HANDOFF Phase 7: enabling a model that has never once answered a live probe
+Enabling a model that has never once answered a live probe
 (`last_live_at IS NULL` — migration 051) is refused with 409, `detail="never_live"`
 (bare string — frontend does an exact match). Disabling is always allowed
 regardless. The row is still returned by GET either way — this only guards
@@ -34,7 +34,7 @@ router = APIRouter()
 
 # request_extras is admin-editable but must never carry an unverified field to
 # NIM — same allowlist the config.py MODEL_REQUEST_EXTRAS table's two known
-# fields use (see backend/CLAUDE.md "reasoning-model request budget hotfix").
+# fields use.
 _EXTRAS_ALLOWED_KEYS = {"reasoning_effort", "chat_template_kwargs"}
 _EXTRAS_MAX_BYTES = 1024
 
@@ -103,7 +103,7 @@ async def patch_catalog_model(
     if updated.get("enabled") is False and model_id in set(config.MODELS.values()):
         raise HTTPException(status_code=409, detail="Cannot disable a role model (llama/coder/reasoning)")
 
-    # HANDOFF Phase 7: never offer a model that was never live. Enabling is
+    # Never offer a model that was never live. Enabling is
     # blocked (disabling never is — that's always safe) when the row has
     # never once answered a probe with status="live". A row currently
     # status="live" always has last_live_at set (store.py sets it on every

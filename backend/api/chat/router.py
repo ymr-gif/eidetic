@@ -36,7 +36,7 @@ async def chat(
     # via the stateless /chat path. Checked BEFORE the try below so the 402
     # HTTPException isn't swallowed by the generic error handler.
     await _check_cost_cap(current_user, db)
-    # Phase 3 (live model catalog): refresh the in-process snapshot (15s-guarded,
+    # Live model catalog: refresh the in-process snapshot (15s-guarded,
     # no-op most calls) before resolving model_override against it.
     await catalog_cache.ensure_fresh()
     effective_model = _resolve_model(req.model_override)

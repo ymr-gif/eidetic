@@ -45,7 +45,7 @@ def _check_turn_budget(turn_start: float, token_chars: int) -> str | None:
         if est_tokens > config.STREAM_MAX_TURN_TOKENS:
             return f"Response stopped — output token budget exceeded ({config.STREAM_MAX_TURN_TOKENS} tok)"
     return None
-# Phase 0 instrumentation: one JSON line per turn carrying every connector-intent score and
+# Instrumentation: one JSON line per turn carrying every connector-intent score and
 # the flip/no-flip decision, so traffic can be replayed into eval sets (none_intent /
 # weak_real / tie) without re-running the model. Distinct logger name → greppable / routable
 # (`grep '"evt": "latch_score"'`) without drowning in the service log.
@@ -55,7 +55,7 @@ latch_logger = logging.getLogger("connector_intent.scores")
 async def _resolve_connector_latches(actives: dict, latched: dict, conv_id, query_emb,
                                      embed_status: str = "ok", *, message: str = "",
                                      turn: int | None = None) -> dict:
-    """Resolve all connector session intent latches for this turn (Q3 Task B + generalization).
+    """Resolve all connector session intent latches for this turn.
 
     Single-winner: already-latched connectors stay latched (sticky; TTL refreshed). Among
     ACTIVE, not-yet-latched connectors, score query_emb vs each centroid and latch ONLY the
@@ -69,7 +69,7 @@ async def _resolve_connector_latches(actives: dict, latched: dict, conv_id, quer
     USE_REDIS off → same-turn score only (no cross-turn stickiness); never falls back to
     capability-only (that reinstates the over-fire bug). query_emb None → all scores 0.0.
 
-    Phase 0: ALL three connectors are scored every turn (not just the active+unlatched flip
+    ALL three connectors are scored every turn (not just the active+unlatched flip
     candidates) so the structured log captures cross-talk — the flip itself still considers
     only the active, not-yet-latched subset, so behavior is unchanged. Returns the updated
     latched dict.
@@ -113,7 +113,7 @@ async def _resolve_connector_latches(actives: dict, latched: dict, conv_id, quer
         else:
             why = f"winner {winner} {s:.3f} < per-connector thr {INTENT_THRESHOLDS[winner]:.2f}"
 
-    # Structured per-turn score log (Phase 0; one JSON line per turn for eval-set building).
+    # Structured per-turn score log (one JSON line per turn for eval-set building).
     try:
         ranked = sorted(all_scores.items(), key=lambda kv: kv[1], reverse=True)
         argmax_c, argmax_s = ranked[0]
@@ -152,8 +152,8 @@ async def generate_response(message: str, request_id: str, model_override: str |
         pass
 
     # Cache key must mirror the write side below (model_override or "") — never
-    # the routed model — same invariant as the /chat/stream cache (backend/CLAUDE.md
-    # "cache" bullet): otherwise an explicit model pick could return another
+    # the routed model — same invariant as the /chat/stream cache:
+    # otherwise an explicit model pick could return another
     # model's cached answer (or vice versa) and mis-attribute cost/billing.
     cache_model = model_override or ""
     cached = await get_cached_response(message, model=cache_model)  # non-streaming: no history context
@@ -174,7 +174,7 @@ async def generate_response(message: str, request_id: str, model_override: str |
 
     for idx, current_model in enumerate(fallback_chain):
         fallback_used = idx > 0
-        # Reasoning-toggle extras (Phase 2c) apply to every model, every call —
+        # Reasoning-toggle extras apply to every model, every call —
         # no thinking-on path, even for the reasoning role's own chat turns.
         result  = await call(current_model, [{"role": "user", "content": message}], request_id,
                               model_params=apply_request_extras(current_model, None))
@@ -324,7 +324,7 @@ async def generate_stream(
             except Exception:
                 pass
 
-    # Per-connector intent latch (Q3 Task B + calendar/gmail generalization). Withhold
+    # Per-connector intent latch. Withhold
     # each connector's schemas until genuine intent for THAT connector appears, then latch
     # it in for the session. Single-winner across connectors (one request can't latch the
     # others — they share a "check my X" structure → high cross-talk). Runs BEFORE the
@@ -440,7 +440,7 @@ async def generate_stream(
             _seen_rules.add(t.behavioral_rules)
             _rules_block.append({"role": "system", "content": t.behavioral_rules})
 
-    # Clarify fallback (fork-B). For connectors that are ACTIVE but NOT latched this turn (the
+    # Clarify fallback. For connectors that are ACTIVE but NOT latched this turn (the
     # under-fire case), the schemas + their behavioral_rules are withheld — so without this the
     # model doesn't even know the connector exists and can't ask "which X?". Inject a lightweight,
     # latch-INDEPENDENT nudge (no schemas → schemas stay withheld, KV prefix stays byte-stable) so
@@ -488,7 +488,7 @@ async def generate_stream(
             yield {"type": "status", "stage": "fallback", "detail": f"Falling back → {current_model}", "level": "error"}
         tool_messages  = list(base_messages)
         ctx_window = get_context_limit(current_model)
-        # Reasoning-toggle extras (Phase 2c) apply to every model, every call —
+        # Reasoning-toggle extras apply to every model, every call —
         # no thinking-on path, even for the reasoning role's own chat turns.
         # Computed once per fallback attempt (current_model is fixed across the
         # tool-iteration loop below).

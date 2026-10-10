@@ -17,7 +17,7 @@ Markers:
   * integration tests → ``optional`` (additionally need an active OAuth connector;
     self-skip when the connector is absent — e.g. Gmail is not connected here)
 
-Gating reference (backend/CLAUDE.md "AI Agent Tool Loop") — capability-only now;
+Gating — capability-only now;
 the model decides when to call via native function calling (no keyword pre-filter):
   * ``web_search``  → WEB_SEARCH_ENABLED=true
   * ``fetch_url``   → message contains an http(s):// URL
@@ -317,7 +317,7 @@ def test_calendar_list_events(sse_post, client, calendar_admin):
 def test_calendar_create_confirm_sentinel(sse_post, client, calendar_admin):
     """Write tools must pause for confirmation — never hit Google from the loop.
 
-    Latch-first (Q3 Task B): calendar schemas are withheld until embedding-cosine intent
+    Latch-first: calendar schemas are withheld until embedding-cosine intent
     latches the session — a lone cold create-turn scores below the 0.70 floor (measured
     0.531 on 2026-07-03) so the tool is structurally absent. Lead with a strong read to
     latch, then create on the SAME conversation (the shipped UX; mirrors rich_exercise)."""

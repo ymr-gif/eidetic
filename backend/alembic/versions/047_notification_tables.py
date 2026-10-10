@@ -1,4 +1,4 @@
-"""add UserNotificationPreferences and PushSubscription tables (Phase 3c)
+"""add UserNotificationPreferences and PushSubscription tables
 
 Revision ID: 047
 Revises: 046

@@ -1,6 +1,6 @@
-"""model_catalog.last_live_at — never offer a model that was never live (HANDOFF Phase 7)
+"""model_catalog.last_live_at — never offer a model that was never live
 
-Root found a real hole in Phase 3's availability rule: `_entry_available`
+The first availability rule had a real hole: `_entry_available`
 tolerated any transient status (`timeout`/`error`) with `fail_count<=1` as
 available — including a model that has NEVER once answered a probe (repro:
 `nvidia/nemotron-3-ultra-550b-a55b` enabled with status `timeout`,

@@ -1,4 +1,4 @@
-"""Lock S2: sync_schedules must never remove the internal __*__ jobs.
+"""sync_schedules must never remove the internal __*__ jobs.
 
 sync_schedules computes stale jobs as `existing - active_ids`, where active_ids
 is only ScheduledPrompt rows. The internal jobs (__sync__, __compact_memory__,

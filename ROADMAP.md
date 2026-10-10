@@ -7,10 +7,9 @@ Last updated: 2026-07-04 (full-surface verification green 2026-07-03 — every d
 **This document is subject to change.** Add, remove, or reprioritize features freely. Treat it as a living spec.
 
 > **Deployment direction (2026-06-17):** NIM is a test backend; the app is porting to a self-hosted
-> home server (llama.cpp/GGUF; Mixtral 8x7B → 8x22B → eventual MoE, text-only). The port + the
-> revised #19 plan (CPU PaddleOCR, not a VLM) are specced in `BUGS.md` → "Decisions — Home-Server
-> Port & #19 Vision". The Calendar connector shipped; **#19 (Q2) image CPU-OCR shipped** (upload +
-> chat paste, searchable, behind `IMAGE_OCR_ENABLED`). Q1 (Home-Server Port) is parked in `QUEUE.md`
+> home server (llama.cpp/GGUF; Mixtral 8x7B → 8x22B → eventual MoE, text-only). The #19 plan was
+> revised to CPU PaddleOCR, not a VLM. The Calendar connector shipped; **#19 image CPU-OCR shipped** (upload +
+> chat paste, searchable, behind `IMAGE_OCR_ENABLED`). The home-server port is parked
 > — box-independent work done, remainder blocked on the 2×P40 box. The backend config half is
 > pre-staged behind an inert `LLM_BACKEND` flag (`nim`|`homeserver`); the tool_calls gate passed CPU-side.
 
@@ -18,12 +17,12 @@ Last updated: 2026-07-04 (full-surface verification green 2026-07-03 — every d
 
 ## How to Read This
 
-**Build sequence:** Start at `Implementation Order` (bottom). Pick the next numbered item. Jump to its feature entry in the `Feature Backlog` section for concrete tasks. Pass to HANDOFF.
+**Build sequence:** Start at `Implementation Order` (bottom). Pick the next numbered item. Jump to its feature entry in the `Feature Backlog` section for concrete tasks.
 
 **Sections:**
 - `Current State` — what is already built and working. Do not re-implement these.
 - `Gap Analysis` — what is missing, grouped by which part of the vision it serves. Use this to understand *why* a feature matters before building it.
-- `Feature Backlog` — one entry per feature: what it is, which files to touch, backend vs frontend split. This is the source of truth for HANDOFF task lists.
+- `Feature Backlog` — one entry per feature: what it is, which files to touch, backend vs frontend split. This is the source of truth for task lists.
 - `Implementation Order` — the recommended build sequence. Numbers = priority. Lower = build sooner.
 - `Vision Alignment Score` — rough % coverage per dimension. Update after each feature ships.
 
@@ -254,13 +253,13 @@ Priority tiers: **P0** = core cognition · **P1** = platform completeness · **P
 #### Image Storage + Indexing ✅ (2026-06-21)
 Persist uploaded images as `File` records. Extract text via **CPU OCR (PaddleOCR)** at upload (chat model is text-only on the home server — no VLM caption). Embed the OCR text for semantic search alongside text chunks; both Library uploads and inline `image_b64` chat paste route through OCR.
 - ~~Backend: processor.py image path (`_extract_image`/`extract_image_from_bytes`); `File.media_type`/`ocr_text` + migration 045; `IMAGE_OCR_ENABLED` gate; paste-path unify (`stream.py`)~~ ✅
-- ~~Scanned-PDF fallback (Q-C5): `_extract_pdf` → blank text + gate on → pypdfium2 render → PaddleOCR per page (`_PDF_OCR_MAX_PAGES=20`)~~ ✅
+- ~~Scanned-PDF fallback: `_extract_pdf` → blank text + gate on → pypdfium2 render → PaddleOCR per page (`_PDF_OCR_MAX_PAGES=20`)~~ ✅
 - ~~Frontend: image thumbnail + `ocr_text` snippet (FilesPanel), Preview tab (FileViewer), `img` search badge~~ ✅
-- Revised approach + full to-do: `BUGS.md` decisions (Q-C*) and `QUEUE.md` Q2. (Earlier VLM-caption draft superseded.)
+- The earlier VLM-caption draft is superseded by the CPU-OCR approach above.
 
 #### Voice Input ✅ (STT, 2026-06-21)
 Browser `MediaRecorder` → `POST /api/transcribe` → text injected into chat input. **STT only** (TTS deferred).
-- ~~Backend: transcription endpoint (`VOICE_ENABLED`-gated, stub transcriber)~~ ✅ — real Whisper/ASR parked in `QUEUE.md` Q2 (box-blocked)
+- ~~Backend: transcription endpoint (`VOICE_ENABLED`-gated, stub transcriber)~~ ✅ — real Whisper/ASR parked (blocked on the home-server box)
 - ~~Frontend: mic button in chat input~~ ✅
 
 #### Horizontal Scaling ✅ (2026-06-21)
@@ -304,9 +303,9 @@ P3 — future
   ~~17. Live Webpage Ingestion~~ ✅
   ~~18. External Integrations~~ ✅
   ~~19. Image Storage + Indexing~~ ✅
-  ~~20. Voice Input~~ ✅ (STT; real ASR parked — QUEUE Q2)
+  ~~20. Voice Input~~ ✅ (STT; real ASR parked)
   ~~21. Horizontal Scaling~~ ✅
-  22. Multi-Modal Memory          trigger-gated (BUGS Q-D2) — build only on the trigger
+  22. Multi-Modal Memory          trigger-gated — build only on the trigger
 ```
 + Gmail (read) connector · Onboarding wizard · Out-of-UI notifications (email + web push) — shipped 2026-06-21
 

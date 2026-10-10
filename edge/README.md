@@ -7,9 +7,7 @@ address; both route to the same script. It proxies every request to `ORIGIN`
 (`https://eidetic.taile6aad6.ts.net`) untouched when the box is reachable, and serves a themed
 offline page when it is not.
 
-Full contract, the two implementation gotchas (abort-timer scope, KV write throttling), and the
-verification checklist live in `plans/cloudflare-worker/README.md` — read that first. This file is
-the operational runbook: deploy, rollback, repoint.
+This file is the operational runbook: deploy, rollback, repoint.
 
 Owned by the `docker/` worker as infra. Not part of the Docker Compose stack — nothing here builds
 into a container or touches the box. `ts.net` stays the direct/origin URL for CI, OAuth redirects,
@@ -80,8 +78,7 @@ No build step; `worker.js` and `offline.js` ship as-is.
 
 On an upstream-down status (`UPSTREAM_DOWN_STATUSES`) or a `fetch` throw, `worker.js` retries
 **once** after a ~300ms backoff before showing the offline page — added because a healthy box was
-observed briefly failing (~0.35s, not the 8s timeout) for reasons never identified; see
-`plans/cloudflare-worker/README.md` → "As built" for the incident.
+observed briefly failing (~0.35s, not the 8s timeout) for reasons never identified.
 
 - **Only `GET`/`HEAD`/`OPTIONS` retry.** `POST`/`PUT`/`PATCH`/`DELETE` never do — a down-status from
   our own nginx can mean the request already reached the app, and silently replaying a chat turn or

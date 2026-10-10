@@ -1,4 +1,4 @@
-"""GET /api/models (HANDOFF Phase 3) — the model picker's data source: the 3
+"""GET /api/models — the model picker's data source: the 3
 named roles plus every currently-AVAILABLE live-catalog model. Any logged-in
 user (no admin gate — everyone needs this to pick a model in the ⌘K palette,
 compare picker, or conversation-lock select); the admin-only curation surface

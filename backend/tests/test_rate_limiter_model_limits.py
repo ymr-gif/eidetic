@@ -1,5 +1,5 @@
 """rate_limiter/model_limits.py — per-model rate-limit bucket resolution
-(pre-split out of rate_limiter.py, HANDOFF Phase 3). Covers: role ids keep
+(split out of rate_limiter.py). Covers: role ids keep
 their own named bucket unchanged; any other explicitly-picked (catalog) id
 shares ONE bucket; ephemeral demo accounts get half that shared bucket's
 limit; a role with no configured limit enforces nothing.

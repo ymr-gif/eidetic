@@ -1,12 +1,12 @@
 """Live: the autonomous/background pipeline, observed end-to-end over HTTP.
 
-Closes BUGS.md V-A1 (insight generation), V-A2 (memory compaction → version),
-V-A3 (graph extraction after chat), V-A6 (auto-title). Each drives the real trigger
+Covers insight generation, memory compaction → version,
+graph extraction after chat and auto-title. Each drives the real trigger
 and polls the result endpoint until the background job (ARQ / inline async task)
 lands its side effect. Throwaway users isolate state.
 
-V-A4 (behavior profile) and V-A5 (preferences) have no HTTP surface — verified
-separately via DB/ARQ in the run scripts, recorded in BUGS.md.
+Behavior profile and preferences have no HTTP surface — verified
+separately via DB/ARQ in the run scripts.
 
 Marker: live_nim (real model + background workers).
 """

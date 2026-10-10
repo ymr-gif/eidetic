@@ -27,7 +27,7 @@ logger = logging.getLogger("system")
 _PING_TIMEOUT = 5  # seconds per check (the /health endpoint's own pings — unchanged)
 
 # Startup model probe — deliberately separate from _PING_TIMEOUT above (found
-# 2026-09-20, HANDOFF Phase 3: 3 deploys in a row started with 2 of 3 roles
+# 2026-09-20: 3 deploys in a row started with 2 of 3 roles
 # failed over for 90s). A transient NVIDIA "503 overloaded" or a cold
 # time-to-first-byte past a 5s timeout used to pre-trip the breaker for a
 # model that was actually healthy. Now: a longer, env-tunable timeout, one

@@ -5,7 +5,7 @@ import config
 
 logger = logging.getLogger("router")
 
-# --- User-intent classification (Reasoning Loop, Dimension 3) ----------------
+# --- User-intent classification (Reasoning Loop) ----------------
 # Distinct from classify()/classify_query(): this asks WHAT the user is trying to
 # do — act on something (task), range over a topic (exploration), or get an
 # answer (question). Feeds retrieval breadth + tool eagerness, not model choice.
@@ -21,7 +21,7 @@ _INTENT_EXPLORE = {
     "give me some", "list all", "what are my", "summarize everything",
 }
 
-# Ack / closing lexicon (C2). A message qualifies as a pure closing turn only if
+# Ack / closing lexicon. A message qualifies as a pure closing turn only if
 # EVERY token is in this set (plus: no '?', no digits, ≤6 tokens). It is a
 # work-skipping optimization ONLY — a message that misses it falls through to the
 # classifier, which owns the real decision, so incompleteness stays harmless.
@@ -206,7 +206,7 @@ async def route(message: str, request_id: str) -> tuple[str, float]:
 
 def get_context_limit(model_name: str) -> int:
     """Static table first (the 3 role models + any hand-pinned id), then the
-    catalog's scanned/admin-set context_window (Phase 3), then the default."""
+    catalog's scanned/admin-set context_window, then the default."""
     if model_name in config.CONTEXT_WINDOWS:
         return config.CONTEXT_WINDOWS[model_name]
     from llm.catalog import cache as catalog_cache

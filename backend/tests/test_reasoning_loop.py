@@ -1,4 +1,4 @@
-"""Reasoning-loop tests (Dimension 3) — grounding confidence + intent. No live NIM."""
+"""Reasoning-loop tests — grounding confidence + intent. No live NIM."""
 import os
 import sys
 

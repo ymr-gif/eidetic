@@ -1,4 +1,4 @@
-"""add media_type and ocr_text to files (Q2 #19 image OCR)
+"""add media_type and ocr_text to files (image OCR)
 
 Revision ID: 045
 Revises: 044

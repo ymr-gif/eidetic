@@ -6,8 +6,8 @@ from core.db import Base
 
 
 class ModelCatalog(Base):
-    """One row per NIM model id the scanner has ever seen (HANDOFF Phase 3,
-    migration 050). `id` is the raw NIM model id (e.g. "z-ai/glm-5.3-flash") —
+    """One row per NIM model id the scanner has ever seen
+    (migration 050). `id` is the raw NIM model id (e.g. "z-ai/glm-5.3-flash") —
     used as the primary key rather than a surrogate since it IS the natural
     key everywhere else (MODELS dict values, ChatRequest.model_override, ...).
 
@@ -17,7 +17,7 @@ class ModelCatalog(Base):
     by the scanner's probe (empty `content` + non-empty `reasoning_content`) so
     the admin UI can warn "reasoning model — set extras" on a newly-live id.
 
-    `last_live_at` (migration 051, HANDOFF Phase 7): the last time a probe
+    `last_live_at` (migration 051): the last time a probe
     actually returned status="live" for this id. Set by
     llm/catalog/store.py:upsert_scan_result whenever a scan probe is live;
     left untouched on every other outcome. Closes the "never offer a model

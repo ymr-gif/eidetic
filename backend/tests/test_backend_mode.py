@@ -43,7 +43,7 @@ def test_default_is_nim_and_inert():
     assert cfg.NIM_URL == "https://integrate.api.nvidia.com/v1/chat/completions"
     assert cfg.NIM_EMBEDDING_URL == "https://integrate.api.nvidia.com/v1/embeddings"
     # Model ids churn under NVIDIA's catalog (root swaps MODEL_LLAMA/CODER/REASONING
-    # in .env as NVIDIA EOLs them — 2026-07-06 and again 2026-09-19, see BUGS.md) —
+    # in .env as NVIDIA EOLs them — 2026-07-06 and again 2026-09-19) —
     # do NOT hardcode a specific live id here. Assert only that nim mode stays
     # inert: three distinct NIM ids, none of them a known-retired id or the
     # homeserver "mixtral" alias.

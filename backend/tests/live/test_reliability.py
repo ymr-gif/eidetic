@@ -1,10 +1,10 @@
 """Live: reliability invariants — rate limiting + cost cap.
 
-Closes BUGS.md V-D3 (rate limit) and V-D4 (cost cap). Both run on **throwaway users**
+Covers the rate limit and the cost cap. Both run on **throwaway users**
 so the blast radius (a locked-out / capped user) never touches real or seeded accounts.
 
-V-D1 (fallback chain) and V-D2 (circuit breaker) require tripping a model's breaker in
-Redis — done as an isolated, immediately-reverted run-script step (recorded in BUGS.md),
+The fallback chain and the circuit breaker require tripping a model's breaker in
+Redis — done as an isolated, immediately-reverted run-script step,
 not here, to avoid leaving breaker state across the test session.
 
 Note: cost accounting is eventually-consistent (cost is persisted by a background task

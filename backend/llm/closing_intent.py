@@ -32,7 +32,7 @@ against `tests/closing_intent_eval.jsonl`. **Re-tuned 2026-09-20 for `nvidia/nem
 (2048-d) — see `CLOSING_THRESHOLD` comment for the measured numbers; nemotron runs noticeably
 cooler/tighter than e5 did, so the old 0.83 does not port (see `tests/latch/retune_thresholds.py`).
 Re-run the eval + re-tune again on the eventual bge-large-en-v1.5 (homeserver) swap — same
-obligation as the connector `INTENT_THRESHOLDS`. See backend/CLAUDE.md → LLM_BACKEND invariant.
+obligation as the connector `INTENT_THRESHOLDS`.
 """
 
 from __future__ import annotations

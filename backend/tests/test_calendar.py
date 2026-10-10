@@ -18,8 +18,8 @@ from llm.tools.builtin.calendar_tools import _cal_full_gate
 
 
 class TestCapabilityGating:
-    """Calendar tools are gated on capability AND the session intent latch (Q3 Task B
-    generalization): connector active AND the session latched on calendar intent. The
+    """Calendar tools are gated on capability AND the session intent latch:
+    connector active AND the session latched on calendar intent. The
     latch is resolved in generate_stream from an embedding cosine; the gate reads flags."""
 
     def test_injected_when_connector_active_and_latched(self):

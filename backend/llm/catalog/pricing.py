@@ -3,7 +3,7 @@ per-1M-token rates. Replaces the old `MODEL_PRICING.get(model, {})` pattern
 (which billed an unpriced model at $0 — the demo per-account/global caps
 didn't bind) with a three-tier lookup, catalog first:
 
-  1. model_catalog row's price_in/price_out (admin override, Phase 3)
+  1. model_catalog row's price_in/price_out (admin override)
   2. config.MODEL_PRICING[model_id] (the static table)
   3. config.DEFAULT_MODEL_PRICE_IN/OUT (user decision: unpriced != free)
 

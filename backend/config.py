@@ -46,8 +46,7 @@ REDIS_URL = os.getenv("REDIS_URL")
 # ── Model routing ─────────────────────────────────────────────────────────────
 # 2026-09-19 NIM EOL recovery: meta/llama-3.1-8b-instruct, deepseek-ai/deepseek-v4-flash
 # and meta/llama-3.3-70b-instruct (already-retired reasoning fallback) all started
-# returning 410 Gone. Swapped to the live replacements below — see BUGS.md /
-# HANDOFF_ARCHIVE.md for the full EOL timeline.
+# returning 410 Gone. Swapped to the live replacements below.
 MODELS = {
     "llama":     os.getenv("MODEL_LLAMA",     "openai/gpt-oss-20b"),
     "coder":     os.getenv("MODEL_CODER",     "deepseek-ai/deepseek-v4-flash-0731"),
@@ -65,15 +64,15 @@ MODEL_EMBEDDING   = os.getenv("MODEL_EMBEDDING",   "nvidia/nemotron-3-embed-1b")
 MODEL_VISION      = os.getenv("MODEL_VISION",      "meta/llama-3.2-90b-vision-instruct")
 EMBEDDING_DIM     = int(os.getenv("EMBEDDING_DIM", "2048"))
 
-# ── Reasoning-model request budget hotfix (Phase 2b/2c, 2026-09-20) ────────────
+# ── Reasoning-model request budget hotfix (2026-09-20) ────────────
 # All three live chat models above are reasoning models: hidden reasoning tokens
 # are spent out of `max_tokens` before any visible `content` appears, so a short
 # auxiliary call (title/classifier/...) with a small cap came back empty
 # (nim_empty_content) and a real chat turn with a low cap truncated to nothing.
 # Verified live 2026-09-20 via direct curl (max_tokens=60, "capital of France"):
 # each field below drops completion tokens from ~50 to 2-15 and returns content.
-# Phase 2b applied these only to "fast" auxiliary calls, keeping thinking ON for
-# the reasoning role's own chat turns. Phase 2c dropped that split after root
+# The first version applied these only to "fast" auxiliary calls, keeping thinking ON for
+# the reasoning role's own chat turns. The second dropped that split after root
 # found nemotron-3-super intermittently leaks chain-of-thought straight into
 # `content` when thinking is on (live conv 7e32749a...) — these fields now apply
 # to EVERY call for a listed model, no exceptions. Applied per call site via
@@ -85,7 +84,7 @@ MODEL_REQUEST_EXTRAS: dict[str, dict] = {
     "nvidia/nemotron-3-super-120b-a12b":  {"chat_template_kwargs": {"enable_thinking": False}},
     "deepseek-ai/deepseek-v4-flash-0731": {"chat_template_kwargs": {"thinking": False}},
 }
-# Per-model max_tokens floor (Phase 2c) for a model whose lowest reasoning
+# Per-model max_tokens floor for a model whose lowest reasoning
 # setting still isn't a full off switch and can starve a small budget — verified
 # live: gpt-oss-20b at reasoning_effort=low still nim_empty_content'd at
 # max_tokens=60. Only raises an EXPLICITLY-set max_tokens below the floor — an
@@ -126,7 +125,7 @@ FALLBACK_ORDER  = ["reasoning", "coder", "llama"]
 # (same endpoint, different model). Disabled by default → byte-identical to today.
 # CHAT ONLY, never embeddings: falling back to a different embedder mixes two
 # vector spaces and poisons retrieval (an embedder change is a re-embed, not a
-# failover). See plans/oracle-deploy/TASK-endpoint-failover.md.
+# failover).
 # Read as config.X at call time in llm/endpoint.py / llm/nim.py (never `from
 # config import`) so /admin/env/reload reaches them live (LLM_BACKEND invariant).
 LLM_FAILOVER_ENABLED = os.getenv("LLM_FAILOVER_ENABLED", "false").lower() == "true"
@@ -141,7 +140,7 @@ LLM_PRIMARY_API_KEY  = os.getenv("LLM_PRIMARY_API_KEY", "")
 
 # ── Per-model rate limits (req / 60s) — applied only on explicit model selection
 # "catalog": shared bucket for any explicitly-picked model that is NOT one of the
-# three named roles (i.e. a live-catalog pick, Phase 3) — see rate_limiter/model_limits.py.
+# three named roles (i.e. a live-catalog pick) — see rate_limiter/model_limits.py.
 MODEL_RATE_LIMITS: dict[str, tuple[int, int]] = {
     "llama":     (_int_env("RATE_LIMIT_LLAMA",     15), 60),
     "coder":     (_int_env("RATE_LIMIT_CODER",     10), 60),
@@ -197,10 +196,10 @@ WEB_SEARCH_BACKEND = os.getenv("WEB_SEARCH_BACKEND", "searxng")
 SEARXNG_URL        = os.getenv("SEARXNG_URL",        "http://searxng:8080")
 TAVILY_API_KEY     = os.getenv("TAVILY_API_KEY", "")
 
-# ── Image / CPU-OCR (Q2 #19) ──────────────────────────────────────────────────
+# ── Image / CPU-OCR ──────────────────────────────────────────────────
 IMAGE_OCR_ENABLED = os.getenv("IMAGE_OCR_ENABLED", "false").lower() == "true"
 
-# ── Voice / STT (Phase 1a — #20 Voice Input) ─────────────────────────────────
+# ── Voice / STT ─────────────────────────────────
 VOICE_ENABLED = os.getenv("VOICE_ENABLED", "false").lower() == "true"
 ASR_BACKEND   = os.getenv("ASR_BACKEND", "stub")
 ASR_MODEL     = os.getenv("ASR_MODEL", "base.en")
@@ -286,7 +285,7 @@ MODEL_PRICING: dict[str, dict[str, float]] = {
     "mistralai/mistral-nemotron":                {"input": 0.20, "output": 0.60},
 }
 
-# ── Live model catalog (HANDOFF Phase 3, 2026-09-20) ─────────────────────────
+# ── Live model catalog (2026-09-20) ─────────────────────────
 # Admin-curated list of every model NIM's /v1/models currently serves, scanned
 # every 6h + on manual Rescan (llm/catalog/scanner.py). DEFAULT_MODEL_PRICE_*
 # bills any catalog model an admin enables but never sets a price for (user
@@ -299,7 +298,7 @@ DEFAULT_MODEL_PRICE_OUT   = float(os.getenv("DEFAULT_MODEL_PRICE_OUT", "1.50"))
 CATALOG_PROBE_CONCURRENCY = _int_env("CATALOG_PROBE_CONCURRENCY", 6)
 CATALOG_PROBE_TIMEOUT     = _int_env("CATALOG_PROBE_TIMEOUT", 20)
 
-# ── Notifications / Web Push (Phase 3c) ──────────────────────────────────────
+# ── Notifications / Web Push ──────────────────────────────────────
 VAPID_PUBLIC_KEY  = os.getenv("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
 VAPID_SUBJECT     = os.getenv("VAPID_SUBJECT", "mailto:admin@example.com")
@@ -316,7 +315,7 @@ NOTION_CLIENT_SECRET     = os.getenv("NOTION_CLIENT_SECRET", "")
 GITHUB_CLIENT_ID         = os.getenv("GITHUB_CLIENT_ID", "")
 GITHUB_CLIENT_SECRET     = os.getenv("GITHUB_CLIENT_SECRET", "")
 
-# ── Runtime-configurable connector exposure (QUEUE Q0.6) ──────────────────────
+# ── Runtime-configurable connector exposure ──────────────────────
 # CSV of connector_type values ("google_drive,google_calendar,gmail") the UI should
 # offer an OAuth button for. Empty (default) = every connector stays stubbed. Served
 # via GET /api/integrations/available and read as config.ENABLED_CONNECTOR_TYPES at
@@ -334,10 +333,10 @@ ENABLED_CONNECTOR_TYPES = [
 if LLM_BACKEND == "homeserver":
     NIM_URL                = HOMESERVER_CHAT_URL
     NIM_EMBEDDING_URL      = HOMESERVER_EMBED_URL
-    MODELS                 = {role: HOMESERVER_MODEL for role in MODELS}   # collapse 3 roles → one Mixtral (Q-A5)
-    MODEL_EMBEDDING        = HOMESERVER_EMBED_MODEL                        # bge-large-en-v1.5, 1024-d (Q-B1)
+    MODELS                 = {role: HOMESERVER_MODEL for role in MODELS}   # collapse 3 roles → one Mixtral
+    MODEL_EMBEDDING        = HOMESERVER_EMBED_MODEL                        # bge-large-en-v1.5, 1024-d
     CONTEXT_WINDOWS        = {HOMESERVER_MODEL: HOMESERVER_CTX}
-    DEFAULT_CONTEXT_WINDOW = HOMESERVER_CTX                                # 32768 — budget allocator sizes correctly (Q-A3)
+    DEFAULT_CONTEXT_WINDOW = HOMESERVER_CTX                                # 32768 — budget allocator sizes correctly
     # EMBEDDING_DIM: forced to 1024 here regardless of the env var (bge-large-en-v1.5
     # is fixed at 1024-d) — NOT free anymore as of 2026-09-19: the NIM side moved to
     # nemotron-3-embed-1b at 2048-d, so `message_embeddings`/`file_chunks.embedding`
@@ -350,7 +349,7 @@ if LLM_BACKEND == "homeserver":
     # router is telemetry-only in homeserver mode.
 
 # ── Startup guards ────────────────────────────────────────────────────────────
-# NIM key required only on the paid NIM backend; the LAN llama.cpp server needs none (Q-A6).
+# NIM key required only on the paid NIM backend; the LAN llama.cpp server needs none.
 if LLM_BACKEND != "homeserver" and not NVIDIA_API_KEY:
     raise RuntimeError("NVIDIA_API_KEY is not set. Add it to your .env file.")
 

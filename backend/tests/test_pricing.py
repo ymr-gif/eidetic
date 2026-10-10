@@ -1,4 +1,4 @@
-"""get_pricing() lookup order (HANDOFF Phase 3): catalog override -> static
+"""get_pricing() lookup order: catalog override -> static
 MODEL_PRICING -> DEFAULT_MODEL_PRICE_IN/OUT. Also locks that no call site
 outside llm/catalog/pricing.py itself still reads MODEL_PRICING.get(...) —
 that pattern billed an unpriced model at $0, silently defeating the demo

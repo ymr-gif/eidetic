@@ -1,7 +1,7 @@
 """Google Drive tools — behavioral rules and post-listing stop message,
 co-located here.
 
-Gate: capability AND session intent latch (Q3 Task B). All three Drive tools are
+Gate: capability AND session intent latch. All three Drive tools are
 offered only when the Drive connector is connected (`ctx.drive_active`) AND the
 session has latched on genuine Drive intent (`ctx.drive_latched`). Pre-latch the
 schema is absent, so the model cannot fire a Drive tool on a greeting; post-latch

@@ -1,7 +1,6 @@
-"""model_catalog table — admin-curated live NIM model catalog (HANDOFF Phase 3)
+"""model_catalog table — admin-curated live NIM model catalog
 
-Live model catalog (user-approved 2026-09-19, spec:
-plans/do-we-need-updates-ethereal-lerdorf.md § B-A). The scanner
+Live model catalog (2026-09-19). The scanner
 (llm/catalog/scanner.py) walks NIM's /v1/models every 6h + on manual Rescan,
 probes every chat-candidate id with a 1-token call, and upserts one row per
 id here. Admin curates `enabled`; `status`/`http_status`/`latency_ms`/
@@ -9,8 +8,8 @@ id here. Admin curates `enabled`; `status`/`http_status`/`latency_ms`/
 admin overrides consulted before the static config.py tables
 (llm/catalog/pricing.py, llm/router.py:get_context_limit).
 
-`request_extras`/`min_max_tokens` (added to the original spec by root after
-Phase 2c, before this migration was cut) let an admin apply the same
+`request_extras`/`min_max_tokens` (added after the reasoning-budget
+hotfix, before this migration was cut) let an admin apply the same
 reasoning-toggle-field / max_tokens-floor mechanism config.py's
 MODEL_REQUEST_EXTRAS/MODEL_MIN_MAX_TOKENS give the three seeded role models to
 a newly-enabled catalog model — llm/model_extras.py checks the catalog

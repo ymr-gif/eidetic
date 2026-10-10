@@ -1,4 +1,4 @@
-"""Per-connector intent latch signal tests (Q3 Task B + generalization) — pure unit.
+"""Per-connector intent latch signal tests — pure unit.
 
 Covers the NEAREST-EXAMPLE score math (max cosine over the connector's phrase embeddings), the
 None/empty fail-safe (→ 0.0, fail toward NOT latching), the no-anchors fail-safe, that anchors are

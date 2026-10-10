@@ -10,8 +10,7 @@ per-account (`User.cost_limit_usd`, enforced by the existing
 (`pool_spend_usd`, enforced here and at login-mint time).
 
 All config is read as `config.X` at call time (never `from config import`)
-so `/admin/env/reload` reaches this module live — see backend/CLAUDE.md
-`LLM_BACKEND` invariant for why that matters.
+so `/admin/env/reload` reaches this module live.
 """
 import logging
 import secrets

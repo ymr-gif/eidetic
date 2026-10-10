@@ -2,8 +2,8 @@
 
 The cost ledger IS `messages` rows — `_check_cost_cap` (helpers.py) and GET /usage both
 aggregate Message.cost_usd through the conversation join. The stateless endpoints persist no
-conversation, so their spend was invisible to the rolling window (BUGS.md "Stateless chat
-endpoints", QUEUE Q4). Rather than a new table + migration, each user's stateless spend is
+conversation, so their spend was invisible to the rolling window.
+Rather than a new table + migration, each user's stateless spend is
 recorded as assistant-role Message rows in ONE hidden, archived "[API usage]" conversation:
 both aggregators then include it automatically.
 

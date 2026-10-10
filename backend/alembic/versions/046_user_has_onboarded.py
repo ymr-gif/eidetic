@@ -1,4 +1,4 @@
-"""add User.has_onboarded column (Phase 3b onboarding)
+"""add User.has_onboarded column (onboarding)
 
 Revision ID: 046
 Revises: 045

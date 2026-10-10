@@ -1,4 +1,4 @@
-"""api/system.py:probe_models_on_startup — the pre-trip-fix (HANDOFF Phase 3).
+"""api/system.py:probe_models_on_startup — the pre-trip-fix.
 
 Root found 3 deploys in a row where a single transient probe failure (NVIDIA
 503 "overloaded", or a cold time-to-first-byte past the old 5s timeout)

@@ -1,11 +1,11 @@
 """Per-model rate-limit bucket resolution — split out of rate_limiter.py
-(pre-split, HANDOFF Phase 3) so the Phase 3 shared-catalog-bucket logic has
+so the shared-catalog-bucket logic has
 its own home. `check_model_rate` in rate_limiter.py still owns the Redis
 sliding-window mechanics; this module only decides WHICH bucket + limit apply
 to an explicitly-selected model.
 
 A role id (llama/coder/reasoning) keeps its own named bucket, unchanged. Any
-other explicitly-picked id — a live-catalog model, Phase 3 — shares ONE bucket
+other explicitly-picked id — a live-catalog model — shares ONE bucket
 (`config.MODEL_RATE_LIMITS["catalog"]`, default 20/60s) rather than getting an
 unbounded per-model allowance; `demo_*` ephemeral accounts get half of it.
 """

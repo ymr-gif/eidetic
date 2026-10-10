@@ -45,4 +45,4 @@ cd frontend && npm run build                                            # fronte
 ```
 
 The `infra` and `live_nim` tiers need running services / a live model and are not
-required for merge — see `backend/tests/VERIFICATION_LAUNCH.md` for the full tiers.
+required for merge.

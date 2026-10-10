@@ -46,7 +46,7 @@ async def upsert_scan_result(
     starts disabled — admin must opt in); it is never re-applied to an
     existing row, so an admin's explicit enable/disable choice always wins.
 
-    `last_live_at` (migration 051, HANDOFF Phase 7) is set to `now` whenever
+    `last_live_at` (migration 051) is set to `now` whenever
     `status == "live"` and left untouched on every other outcome — it never
     goes backward to null once a model has genuinely been live at least
     once. Consulted by llm/catalog/cache.py:_entry_available so a model that

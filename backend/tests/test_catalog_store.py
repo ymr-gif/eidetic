@@ -1,8 +1,8 @@
-"""llm/catalog/store.py — model_catalog row persistence (HANDOFF Phase 3 + 7).
+"""llm/catalog/store.py — model_catalog row persistence.
 
 Unit tier — a minimal fake AsyncSession stands in for Postgres (`.get()`
 returns a pre-seeded row or None, `.add()` records the new row). Covers the
-Phase 7 addition: `upsert_scan_result` sets `last_live_at` whenever a probe
+`last_live_at` rule: `upsert_scan_result` sets `last_live_at` whenever a probe
 returns status="live" (new row or existing), and never clears/changes it on
 any other outcome.
 """
@@ -101,7 +101,7 @@ class TestUpsertScanResultLastLiveAt:
 
     @pytest.mark.asyncio
     async def test_existing_live_row_blips_to_timeout_keeps_prior_last_live_at(self):
-        """The core Phase 7 invariant: last_live_at is a high-water mark, never
+        """The core invariant: last_live_at is a high-water mark, never
         cleared by a subsequent transient failure."""
         old = datetime(2026, 9, 1, tzinfo=timezone.utc)
         existing = _existing_row(status="live", fail_count=0, last_live_at=old)

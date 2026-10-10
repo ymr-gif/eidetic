@@ -1,11 +1,11 @@
 """Per-model request-body adjustments for the reasoning-model budget hotfix
-(Phase 2b/2c, 2026-09-20 — see HANDOFF.md + backend/CLAUDE.md).
+(2026-09-20).
 
 All three live NIM chat models are reasoning models: hidden reasoning tokens are
-spent out of `max_tokens` before any visible `content` appears. Phase 2b applied
+spent out of `max_tokens` before any visible `content` appears. The first version applied
 the "fast" field from `config.MODEL_REQUEST_EXTRAS` only to auxiliary calls
 (titles, classifiers, graph extraction, summarizer/compaction, insights,
-probes), keeping thinking ON for the `reasoning` role's own chat turns. Phase 2c
+probes), keeping thinking ON for the `reasoning` role's own chat turns. The second
 dropped that split: root found live that nemotron-3-super intermittently leaks
 chain-of-thought straight into `content` when thinking is on, which is
 unacceptable on a user-facing turn — so the extras now apply to EVERY call for
@@ -24,7 +24,7 @@ MODELS to — are not in MODEL_REQUEST_EXTRAS/MODEL_MIN_MAX_TOKENS, so they get
 no extras and no floor: never send an unverified field to a model that hasn't
 confirmed it accepts it.
 
-Phase 3 (live model catalog): both lookups check the model_catalog row's
+Live model catalog: both lookups check the model_catalog row's
 admin-editable `request_extras`/`min_max_tokens` FIRST — an admin enabling a
 new reasoning-leaking catalog model can apply the same fix without a code
 change. Falls through to the static config.py tables, then to no override at

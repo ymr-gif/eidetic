@@ -240,7 +240,7 @@ async def check_model_rate(full_model_name: str, username: str) -> None:
     Fail-open on Redis unavailability.
 
     Bucket resolution (role vs. shared catalog bucket, demo halving) lives in
-    rate_limiter/model_limits.py (pre-split, HANDOFF Phase 3) — this function
+    rate_limiter/model_limits.py — this function
     only owns the Redis sliding-window mechanics.
     """
     from rate_limiter.model_limits import resolve_bucket

@@ -42,7 +42,7 @@ logger = logging.getLogger("chat")
 
 
 def _compute_grounding(provenance: list[dict], top_k: int) -> dict:
-    """Grounding confidence from retrieval (Dim 3).
+    """Grounding confidence from retrieval.
 
     Uses dense_score (cosine similarity, 0–1, fusion-mode-independent) — NOT
     final_score, which is not comparable across weighted vs RRF fusion. Combines
@@ -114,13 +114,13 @@ async def chat_stream(
     logger.info("[chat/stream] rid=%s user=%s", rid, current_user.username)
 
     await _check_cost_cap(current_user, db)
-    # Phase 3 (live model catalog): refresh the in-process snapshot (15s-guarded,
+    # Live model catalog: refresh the in-process snapshot (15s-guarded,
     # no-op most calls) before resolving model_override/locked_model against it.
     await catalog_cache.ensure_fresh()
 
     conv, rotation_info = await _resolve_conversation(req, current_user, db)
     model_params = _extract_model_params(req)
-    # A locked model an admin has since disabled/delisted (Phase 3) resolves to
+    # A locked model an admin has since disabled/delisted resolves to
     # None here even though the DB value is untouched — fall back to Auto for
     # THIS turn and surface it via a status event below, rather than sending a
     # request to NIM for a model that will just fail.
@@ -214,7 +214,7 @@ async def chat_stream(
         )
         t_cmp = metrics.record_request_start()
 
-        # Phase 3: an explicit compare_models selection (max 4, each strict-
+        # An explicit compare_models selection (max 4, each strict-
         # resolved — 422 model_unavailable on a bad pick) overrides the default
         # 3-role comparison. Validated here (not in the pydantic schema) so a
         # bad id names itself in the error rather than a generic length/type msg.
@@ -336,7 +336,7 @@ async def chat_stream(
                     cache_hit     = event.get("cache_hit", False)
                     fallback_used = event.get("fallback_used", False)
                     full_response = "".join(accumulated)
-                    # S3: compress tool-output regurgitation before persisting
+                    # Compress tool-output regurgitation before persisting
                     persisted_content = compress_tool_dumps(full_response) or pending_question
                     drive_read    = event.get("drive_read", False)
                     drive_file_name = event.get("drive_file_name", "")
@@ -459,7 +459,7 @@ async def chat_stream(
                     event["query_type"]   = render_meta["query_type"]
                     event["src_count"]    = render_meta["src_count"]
                     event["last_session"] = ctx.get("last_session", "")
-                    # Reasoning-loop disclosure (Dim 3): grounding confidence +
+                    # Reasoning-loop disclosure: grounding confidence +
                     # detected intent + the full pipeline trace, all on one event.
                     event["grounding"] = render_meta["grounding"]
                     event["intent"]    = ctx.get("intent", "question")

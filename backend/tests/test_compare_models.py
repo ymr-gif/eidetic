@@ -1,4 +1,4 @@
-"""Compare mode, Phase 3 additions (HANDOFF): an explicit `compare_models`
+"""Compare mode with the live model catalog: an explicit `compare_models`
 pick (max 4, strict-resolved) overriding the default 3-role comparison, and
 the new `compare_start` first event naming models + labels.
 

@@ -1,6 +1,6 @@
 """Live: HTTP-contract coverage for endpoints the earlier sweeps never touched.
 
-Closes BUGS.md V-C1..C4, V-C6, V-D5, V-E5, V-B1 against the running stack. Mutating
+Runs against the running stack. Mutating
 tests isolate blast radius with **throwaway users** (registered per-test, disabled in
 teardown — there is no user-delete endpoint) and always restore any shared state.
 

@@ -78,7 +78,7 @@ async def chat_completions(
     current_user: User         = Depends(get_current_user),
     db:           AsyncSession = Depends(get_db),
 ):
-    # Same cost-cap pre-flight as /chat (49cb6ea) — this endpoint was uncovered.
+    # Same cost-cap pre-flight as /chat — this endpoint was uncovered.
     await _check_cost_cap(current_user, db)
     # Live model catalog: refresh the in-process snapshot before this
     # endpoint's own _resolve_model runs.
